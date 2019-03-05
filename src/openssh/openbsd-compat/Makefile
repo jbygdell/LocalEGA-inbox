@@ -1,18 +1,14 @@
-sysconfdir=@sysconfdir@
-piddir=@piddir@
-srcdir=@srcdir@
-top_srcdir=@top_srcdir@
+sysconfdir=${prefix}/etc
 
-VPATH=@srcdir@
-CC=@CC@
-LD=@LD@
-CFLAGS=@CFLAGS@
-CPPFLAGS=-I. -I.. -I$(srcdir) -I$(srcdir)/.. @CPPFLAGS@ @DEFS@
-LIBS=@LIBS@
-AR=@AR@
-RANLIB=@RANLIB@
-INSTALL=@INSTALL@
-LDFLAGS=-L. @LDFLAGS@
+CC=gcc
+LD=gcc
+CFLAGS=-g -O2 -pipe -Wall -Wpointer-arith -Wuninitialized -Wsign-compare -Wformat-security -Wsizeof-pointer-memaccess -Wno-pointer-sign -Wno-unused-result -fno-strict-aliasing -mfunction-return=thunk -mindirect-branch=thunk -D_FORTIFY_SOURCE=2 -ftrapv -fno-builtin-memset -fstack-protector-strong -fPIE  
+CPPFLAGS=-I. -I.. -D_XOPEN_SOURCE=600 -D_BSD_SOURCE -D_DEFAULT_SOURCE -DHAVE_CONFIG_H
+LIBS=-lcrypto -ldl -lutil -lz  -lcrypt -lresolv
+AR=ar
+RANLIB=ranlib
+INSTALL=/usr/bin/install -c
+LDFLAGS=-L.  -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack -fstack-protector-strong -pie 
 
 OPENBSD=base64.o \
 	basename.o \
@@ -108,7 +104,4 @@ libopenbsd-compat.a:  $(COMPAT) $(OPENBSD) $(PORTS)
 	$(RANLIB) $@
 
 clean:
-	rm -f *.o *.a core
-
-distclean: clean
-	rm -f Makefile *~
+	rm -f *~ *.o *.a core

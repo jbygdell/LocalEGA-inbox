@@ -20,14 +20,13 @@ RUN groupadd -r -g ${LEGA_GID} lega && \
 RUN yum -y install https://centos7.iuscommunity.org/ius-release.rpm && \
     yum -y install epel-release && \
     yum -y update && \
-    yum -y install git gcc make bzip2 curl \
+    yum -y install git gcc make bzip2 \
                    zlib-devel bzip2-devel unzip \
-		   wget \
-                   openssl openssl-devel \
-		   autoconf patch pam-devel libcurl-devel nss-tools readline-devel libedit-devel
+		   openssl openssl-devel \
+		   pam-devel libcurl-devel nss-tools readline-devel
 
 # Adding the DEV packages?
-# RUN yum install -y nss-tools nc nmap tcpdump lsof strace bash-completion bash-completion-extras
+# RUN yum install -y nc nmap tcpdump lsof strace bash-completion bash-completion-extras
 
 #################################################
 ##
@@ -38,7 +37,7 @@ RUN yum -y install https://centos7.iuscommunity.org/ius-release.rpm && \
 ARG SQLITE_VERSION=3260000
 
 WORKDIR /var/src
-RUN wget https://sqlite.org/2018/sqlite-autoconf-${SQLITE_VERSION}.tar.gz && \
+RUN curl -OJ https://sqlite.org/2018/sqlite-autoconf-${SQLITE_VERSION}.tar.gz && \
     tar xzf sqlite-autoconf-${SQLITE_VERSION}.tar.gz && \
     cd sqlite-autoconf-${SQLITE_VERSION} && \
     ./configure && \
@@ -70,31 +69,17 @@ RUN mkdir -p /var/empty/sshd && \
 # /var/empty/sshd must be owned by root and not group or world-writable.
 
 COPY src /var/src/ega
-
-WORKDIR /var/src/ega/openssh
-RUN autoreconf && \
-    ./configure \
-        --prefix=${OPENSSH_DIR} \
-	--with-privsep-path=/var/empty/sshd \
-        --with-privsep-user=sshd \
-        --with-ssl-engine \
-	--disable-strip \
-	--without-smartcard \
-        --with-pam \
-        --without-selinux \
-	--without-kerberos5 \
-        --with-libedit
-
-
-# RUN make && make install
-
-# RUN rm -f /etc/ssh/ssh_host_{rsa,dsa,ed25519}_key && \
-#     ${OPENSSH_DIR}/bin/ssh-keygen -t rsa     -N '' -f /etc/ssh/ssh_host_rsa_key && \
-#     ${OPENSSH_DIR}/bin/ssh-keygen -t dsa     -N '' -f /etc/ssh/ssh_host_dsa_key && \
-#     ${OPENSSH_DIR}/bin/ssh-keygen -t ed25519 -N '' -f /etc/ssh/ssh_host_ed25519_key
-
 COPY banner /ega/banner
 COPY sshd_config /etc/ega/sshd_config
+
+WORKDIR /var/src/ega/openssh
+RUN make install
+
+RUN rm -f /etc/ssh/ssh_host_{rsa,dsa,ed25519}_key && \
+    ${OPENSSH_DIR}/bin/ssh-keygen -t rsa     -N '' -f /etc/ssh/ssh_host_rsa_key && \
+    ${OPENSSH_DIR}/bin/ssh-keygen -t dsa     -N '' -f /etc/ssh/ssh_host_dsa_key && \
+    ${OPENSSH_DIR}/bin/ssh-keygen -t ed25519 -N '' -f /etc/ssh/ssh_host_ed25519_key
+
 
 #################################################
 ##
@@ -115,7 +100,7 @@ RUN git clone https://github.com/EGA-archive/EGA-auth.git /root/ega-auth && \
 
 RUN ldconfig -v
 
-COPY pam.ega /etc/pam.d/ega
+COPY pam.ega /etc/pam.d/ega-sshd
 
 #################################################
 ##
@@ -123,10 +108,12 @@ COPY pam.ega /etc/pam.d/ega
 ##
 #################################################
 RUN yum clean all && \
+    yum erase -y zlib-devel bzip2-devel unzip openssl-devel pam-devel libcurl-devel readline-devel && \
     rm -rf /var/cache/yum
-# RUN rm -rf /var/src
+RUN rm -rf /var/src
 
 #################################################
+WORKDIR /
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod 755 /usr/local/bin/entrypoint.sh

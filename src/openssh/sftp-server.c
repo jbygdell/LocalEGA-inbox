@@ -1582,7 +1582,7 @@ sftp_server_main(int argc, char **argv, struct passwd *user_pw)
 			break;
 		case 'z':
 			printf("parsing mq conf file: %s", optarg);
-			lega_loadconfig(optarg);
+			lega_config_load(optarg);
 			break;
 		case 'h':
 		default:

@@ -1,6 +1,8 @@
+#define _GNU_SOURCE
 #include <ctype.h>
 #include <errno.h>
 #include <strings.h>
+#include <stdio.h>
 
 #include "lega-utils.h"
 #include "lega-config.h"
@@ -8,11 +10,12 @@
 /* Default config file, if not passed at command-line */
 #define CFGFILE "/etc/ega/mq.conf"
 
+
 options_t* lega_options = NULL;
 char* syslog_name = "LEGA-MQ";
 
 void
-lega_cleanconfig(void)
+lega_config_clean(void)
 {
   if(!lega_options) return;
   D2("Cleaning configuration [%p]", lega_options);
@@ -101,7 +104,7 @@ readconfig(FILE* fp, const char* cfgfile, char* buffer, size_t buflen)
 }
 
 bool
-lega_loadconfig(char* cfgfile)
+lega_config_load(char* cfgfile)
 {
   D1("Loading configuration %s", cfgfile);
   if(lega_options){ D2("Already loaded [@ %p]", lega_options); return true; }
