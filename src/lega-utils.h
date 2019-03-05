@@ -6,7 +6,9 @@
 #include <alloca.h>
 #include <unistd.h>
 
+#ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 700 /* for stpcpy */
+#endif
 #include <string.h>
 #include <stdio.h>
 #include <syslog.h>

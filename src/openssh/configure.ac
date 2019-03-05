@@ -15,7 +15,7 @@
 
 AC_INIT([OpenSSH], [Portable], [openssh-unix-dev@mindrot.org])
 AC_REVISION($Revision: 1.583 $)
-AC_CONFIG_SRCDIR([ssh.c])
+AC_CONFIG_SRCDIR([sshd.c])
 AC_LANG([C])
 
 AC_CONFIG_HEADER([config.h])
@@ -5131,9 +5131,7 @@ CFLAGS="${CFLAGS} ${CFLAGS_AFTER}"
 LDFLAGS="${LDFLAGS} ${LDFLAGS_AFTER}"
 
 AC_EXEEXT
-AC_CONFIG_FILES([Makefile buildpkg.sh opensshd.init openssh.xml \
-	openbsd-compat/Makefile openbsd-compat/regress/Makefile \
-	survey.sh])
+AC_CONFIG_FILES([Makefile buildpkg.sh opensshd.init openssh.xml openbsd-compat/Makefile])
 AC_OUTPUT
 
 # Print summary of options

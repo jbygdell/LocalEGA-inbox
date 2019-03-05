@@ -20,7 +20,7 @@ struct options_s {
 
 typedef struct options_s options_t;
 
-extern options_t* options;
+extern options_t* lega_options;
 
 bool lega_loadconfig(char* cfgfile);
 void lega_cleanconfig(void);

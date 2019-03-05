@@ -51,7 +51,7 @@
 #include "sftp.h"
 #include "sftp-common.h"
 
-#include "config.h"
+#include "lega-config.h"
 
 /* Our verbosity */
 static LogLevel log_level = SYSLOG_LEVEL_ERROR;
@@ -1582,7 +1582,7 @@ sftp_server_main(int argc, char **argv, struct passwd *user_pw)
 			break;
 		case 'z':
 			printf("parsing mq conf file: %s", optarg);
-			localega_mq_conf();
+			lega_loadconfig(optarg);
 			break;
 		case 'h':
 		default:
