@@ -1,8 +1,9 @@
 Port 9000
 Protocol 2
-HostKey /etc/ssh/ssh_host_rsa_key
-HostKey /etc/ssh/ssh_host_dsa_key
-HostKey /etc/ssh/ssh_host_ed25519_key
+Banner  /etc/ega/banner
+HostKey /etc/ega/ssh_host_rsa_key
+HostKey /etc/ega/ssh_host_dsa_key
+HostKey /etc/ega/ssh_host_ed25519_key
 # Authentication
 UsePAM yes
 AuthenticationMethods "publickey" "keyboard-interactive:pam"
@@ -24,6 +25,5 @@ AcceptEnv LC_IDENTIFICATION LC_ALL LANGUAGE
 AcceptEnv XMODIFIERS
 Subsystem sftp internal-sftp -z /etc/ega/mq.conf
 ForceCommand internal-sftp -z /etc/ega/mq.conf
-Banner /ega/banner
 AuthorizedKeysCommand /usr/local/bin/ega_ssh_keys
 AuthorizedKeysCommandUser root

@@ -73,6 +73,8 @@ chgrp lega /ega/inbox
 chmod 750 /ega/inbox
 chmod g+s /ega/inbox # setgid bit
 
+echo 'Welcome to Local EGA Demo instance' > /etc/ega/banner
+
 echo "Starting the SFTP server"
 # See the sshd_config for how we pass the /etc/ega/mq.conf
 # to the subsytem internal-sftp
