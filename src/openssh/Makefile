@@ -18,7 +18,7 @@ SSHDLIBS= -lpam
 AR=ar
 RANLIB=ranlib
 INSTALL=/usr/bin/install -c
-LDFLAGS=-L. -Lopenbsd-compat/  -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack -fstack-protector-strong -pie 
+LDFLAGS=-L. -Lopenbsd-compat/ -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack -fstack-protector-strong -pie
 
 TARGETS=ega-sshd ssh-keygen
 
@@ -73,13 +73,13 @@ SSHDOBJS=sshd.o auth-rhosts.o auth-passwd.o \
 	auth2-gss.o gss-serv.o gss-serv-krb5.o \
 	loginrec.o auth-pam.o auth-shadow.o auth-sia.o md5crypt.o \
 	sftp-server.o sftp-common.o \
-	../lega-config.o ../lega-notify.o \
+	../mq-config.o ../mq-notify.o \
 	sandbox-null.o sandbox-rlimit.o sandbox-systrace.o sandbox-darwin.o \
 	sandbox-seccomp-filter.o sandbox-capsicum.o sandbox-pledge.o \
 	sandbox-solaris.o uidswap.o
 
 
-all: $(TARGETS)
+all: /usr/local/lib/librabbitmq.so $(TARGETS)
 
 $(LIBSSH_OBJS): config.h
 $(SSHDOBJS): config.h
@@ -95,15 +95,15 @@ libssh.a: $(LIBSSH_OBJS)
 	$(AR) rv $@ $(LIBSSH_OBJS)
 	$(RANLIB) $@
 
-ega-sshd: libssh.a	$(LIBCOMPAT) $(SSHDOBJS)
-	$(LD) -o $@ $(SSHDOBJS) $(LDFLAGS) -lssh -lopenbsd-compat $(SSHDLIBS) $(LIBS)
+ega-sshd: libssh.a	$(LIBCOMPAT) $(SSHDOBJS) /usr/local/lib/librabbitmq.so
+	$(LD) -o $@ $(SSHDOBJS) $(LDFLAGS) -lssh -lopenbsd-compat $(SSHDLIBS) $(LIBS) -L/usr/local/lib -lrabbitmq
 
 ssh-keygen: $(LIBCOMPAT) libssh.a ssh-keygen.o
 	$(LD) -o $@ ssh-keygen.o $(LDFLAGS) -lssh -lopenbsd-compat $(LIBS)
 
 clean:
 	rm -f *~ *.o *.a $(TARGETS)
-	rm -f ../lega-*.o
+	rm -f ../mq-*.o
 	$(MAKE) -C openbsd-compat clean
 
 install: $(TARGETS)
@@ -114,10 +114,13 @@ install: $(TARGETS)
 	$(INSTALL) -m 0755 ega-sshd $(sbindir)/ega-sshd
 
 debug1: CFLAGS += -DDEBUG=1 -g -DREPORT
-debug1: ega-sshd
+debug1: install
 
 debug2: CFLAGS += -DDEBUG=2 -g -DREPORT
-debug2: ega-sshd
+debug2: install
 
 debug3: CFLAGS += -DDEBUG=3 -g -DREPORT
-debug3: ega-sshd
+debug3: install
+
+/usr/local/lib/librabbitmq.so:
+	$(MAKE) -C ../rabbitmq-c install

@@ -51,7 +51,7 @@
 #include "sftp.h"
 #include "sftp-common.h"
 
-#include "lega-config.h"
+#include "mq-notify.h"
 
 /* Our verbosity */
 static LogLevel log_level = SYSLOG_LEVEL_ERROR;
@@ -424,9 +424,15 @@ handle_close(int handle)
 	int ret = -1;
 
 	if (handle_is_ok(handle, HANDLE_FILE)) {
-		ret = close(handles[handle].fd);
-		free(handles[handle].name);
-		handle_unused(handle);
+	        Handle h = handles[handle];
+		ret = close(h.fd);
+		if (!ret                                      /* OK */
+		    && (h.flags & (O_CREAT|O_TRUNC|O_APPEND)) /* Create or Truncate or Append: (re)upload */
+		    && !(h.flags & O_RDONLY)                  /* not Read-Only */
+		    )
+		  mq_send_upload(pw->pw_name, h.name);
+	        free(h.name);
+                handle_unused(handle);
 	} else if (handle_is_ok(handle, HANDLE_DIR)) {
 		ret = closedir(handles[handle].dirp);
 		free(handles[handle].name);
@@ -1103,6 +1109,7 @@ process_remove(u_int32_t id)
 	r = unlink(name);
 	status = (r == -1) ? errno_to_portable(errno) : SSH2_FX_OK;
 	send_status(id, status);
+	if(status == SSH2_FX_OK) mq_send_remove(pw->pw_name, name);
 	free(name);
 }
 
@@ -1227,6 +1234,7 @@ process_rename(u_int32_t id)
 			status = SSH2_FX_OK;
 	}
 	send_status(id, status);
+	if(status == SSH2_FX_OK) mq_send_rename(pw->pw_name, oldpath, newpath);
 	free(oldpath);
 	free(newpath);
 }
@@ -1291,6 +1299,7 @@ process_extended_posix_rename(u_int32_t id)
 	r = rename(oldpath, newpath);
 	status = (r == -1) ? errno_to_portable(errno) : SSH2_FX_OK;
 	send_status(id, status);
+	if(status == SSH2_FX_OK) mq_send_rename(pw->pw_name, oldpath, newpath);
 	free(oldpath);
 	free(newpath);
 }
@@ -1579,10 +1588,6 @@ sftp_server_main(int argc, char **argv, struct passwd *user_pw)
 			    cp == optarg || (mask == 0 && errno != 0))
 				fatal("Invalid umask \"%s\"", optarg);
 			(void)umask((mode_t)mask);
-			break;
-		case 'z':
-			printf("parsing mq conf file: %s", optarg);
-			lega_config_load(optarg);
 			break;
 		case 'h':
 		default:

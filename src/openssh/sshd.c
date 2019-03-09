@@ -123,6 +123,8 @@
 #include "version.h"
 #include "ssherr.h"
 
+#include "mq-config.h"
+
 /* Re-exec fds */
 #define REEXEC_DEVCRYPTO_RESERVED_FD	(STDERR_FILENO + 1)
 #define REEXEC_STARTUP_PIPE_FD		(STDERR_FILENO + 2)
@@ -136,6 +138,9 @@ ServerOptions options;
 
 /* Name of the server configuration file. */
 char *config_file_name = _PATH_SERVER_CONFIG_FILE;
+
+/* Name of the MQ configuration file. */
+char *mq_config_file_name = MQ_CFGFILE;
 
 /*
  * Debug mode flag.  This can be set on the command line.  If debug
@@ -1516,7 +1521,7 @@ main(int ac, char **av)
 
 	/* Parse command-line arguments. */
 	while ((opt = getopt(ac, av,
-	    "C:E:b:c:f:g:h:k:o:p:u:46DQRTdeiqrt")) != -1) {
+	    "C:E:b:c:f:g:h:k:o:p:u:Z:46DQRTdeiqrt")) != -1) {
 		switch (opt) {
 		case '4':
 			options.address_family = AF_INET;
@@ -1526,6 +1531,9 @@ main(int ac, char **av)
 			break;
 		case 'f':
 			config_file_name = optarg;
+			break;
+		case 'Z':
+			mq_config_file_name = optarg;
 			break;
 		case 'c':
 			servconf_add_hostcert("[command-line]", 0,
@@ -1677,6 +1685,20 @@ main(int ac, char **av)
 
 	parse_server_config(&options, rexeced_flag ? "rexec" : config_file_name,
 	    cfg, NULL);
+
+	/* Load the MQ connection settings */
+	logit("[MQ] Loading configuration %s", mq_config_file_name);
+	load_mq_config(mq_config_file_name);
+
+#if DEBUG
+	  verbose("[MQ] config file: %s", mq_options->cfgfile);
+	  verbose("[MQ]  connection: %s", mq_options->connection);
+	  verbose("[MQ]    exchange: %s", mq_options->exchange);
+	  verbose("[MQ] routing key: %s", mq_options->routing_key);
+	  verbose("[MQ]    attempts: %d", mq_options->attempts);
+	  verbose("[MQ] retry delay: %d", mq_options->retry_delay);
+	  verbose("[MQ]   heartbeat: %d", mq_options->heartbeat);
+#endif
 
 	seed_rng();
 
