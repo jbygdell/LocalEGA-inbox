@@ -1,11 +1,14 @@
 
-#ifndef __LEGA_CONFIG_H_INCLUDED__
-#define __LEGA_CONFIG_H_INCLUDED__
+#ifndef __MQ_CONFIG_H_INCLUDED__
+#define __MQ_CONFIG_H_INCLUDED__
 
 #include <stdbool.h>
 #include <sys/types.h> 
 
-struct options_s {
+/* Default config file, if not passed at command-line */
+#define MQ_CFGFILE "/etc/ega/mq.conf"
+
+struct mq_options_s {
   char* cfgfile;
   char* buffer;
   
@@ -18,14 +21,14 @@ struct options_s {
   int heartbeat;       /* in seconds */
 };
 
-typedef struct options_s options_t;
+typedef struct mq_options_s mq_options_t;
 
-extern options_t* lega_options;
+extern mq_options_t* mq_options;
 
-bool lega_config_load(char* cfgfile);
-void lega_config_clean(void);
+bool load_mq_config(char* cfgfile);
+void clean_mq_config(void);
 
-#endif /* !__LEGA_CONFIG_H_INCLUDED__ */
+#endif /* !__MQ_CONFIG_H_INCLUDED__ */
 
 
 
