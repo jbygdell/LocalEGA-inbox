@@ -76,6 +76,4 @@ chmod g+s /ega/inbox # setgid bit
 echo 'Welcome to Local EGA Demo instance' > /etc/ega/banner
 
 echo "Starting the SFTP server"
-# See the sshd_config for how we pass the /etc/ega/mq.conf
-# to the subsytem internal-sftp
-exec /opt/openssh/sbin/ega-sshd -D -e -f /etc/ega/sshd_config
+exec /opt/openssh/sbin/ega-sshd -D -e -f /etc/ega/sshd_config -Z /etc/ega/mq.conf
