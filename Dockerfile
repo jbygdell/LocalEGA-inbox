@@ -22,7 +22,7 @@ RUN yum -y install https://centos7.iuscommunity.org/ius-release.rpm && \
     yum -y update && \
     yum -y install git gcc make bzip2 \
                    zlib-devel bzip2-devel unzip \
-		   openssl openssl-devel \
+		   openssl openssl-devel json-c-devel\
 		   pam-devel libcurl-devel nss-tools readline-devel
 
 # Adding the DEV packages?
@@ -107,7 +107,7 @@ COPY conf/pam.ega /etc/pam.d/ega-sshd
 ##
 #################################################
 RUN yum clean all && \
-    yum erase -y zlib-devel bzip2-devel unzip openssl-devel pam-devel libcurl-devel readline-devel && \
+    yum erase -y zlib-devel bzip2-devel unzip openssl-devel pam-devel libcurl-devel readline-devel json-c-devel && \
     rm -rf /var/cache/yum
 RUN rm -rf /var/src
 
