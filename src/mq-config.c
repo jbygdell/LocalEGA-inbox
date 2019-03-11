@@ -3,13 +3,14 @@
 #include <errno.h>
 #include <strings.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <stddef.h>
 
 #include "mq-utils.h"
 #include "mq-config.h"
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
+/* For the IPC queues */
+#define IPC_KEY_PREFIX "ega"
 
 /* Default values */
 #define MQ_ATTEMPTS  10
@@ -47,6 +48,8 @@ valid_options(void)
   if(!mq_options->exchange        ) { D3("Missing exchange");            valid = false; }
   if(!mq_options->routing_key     ) { D3("Missing routing_key");         valid = false; }
 
+  if(!mq_options->ipc_key_prefix  ) { D3("Missing ipc_key_prefix");      valid = false; }
+
   if(!valid){ D3("Invalid config struct from %s", mq_options->cfgfile); }
   return valid;
 }
@@ -68,6 +71,7 @@ readconfig(FILE* fp, const char* cfgfile, char* buffer, size_t buflen)
   mq_options->retry_delay = MQ_DELAY;
   mq_options->heartbeat = MQ_HEARTBEAT;
   COPYVAL(cfgfile, mq_options->cfgfile);
+  COPYVAL(IPC_KEY_PREFIX, mq_options->ipc_key_prefix);
 
   /* Parse line by line */
   while (getline(&line, &len, fp) > 0) {
@@ -95,9 +99,10 @@ readconfig(FILE* fp, const char* cfgfile, char* buffer, size_t buflen)
 	  
     } else val = NULL; /* could not find the '=' sign */
 
-    INJECT_OPTION(key, "connection"         , val, mq_options->connection        );
-    INJECT_OPTION(key, "exchange"           , val, mq_options->exchange          );
-    INJECT_OPTION(key, "routing_key"        , val, mq_options->routing_key       );
+    INJECT_OPTION(key, "connection"    , val, mq_options->connection        );
+    INJECT_OPTION(key, "exchange"      , val, mq_options->exchange          );
+    INJECT_OPTION(key, "routing_key"   , val, mq_options->routing_key       );
+    INJECT_OPTION(key, "ipc_key_prefix", val, mq_options->ipc_key_prefix    );
 
     if(!strcmp(key, "connection_attempts" )) { mq_options->attempts    = strtol(val, NULL, 10); } /* ok when val contains a comment #... */
     if(!strcmp(key, "retry_delay"         )) { mq_options->retry_delay = strtol(val, NULL, 10); }

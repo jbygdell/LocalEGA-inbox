@@ -51,13 +51,14 @@
 #include "sftp.h"
 #include "sftp-common.h"
 
-#include "mq-notify.h"
+#include "mq-listener.h"
 
 /* Our verbosity */
 static LogLevel log_level = SYSLOG_LEVEL_ERROR;
 
 /* Our client */
-static struct passwd *pw = NULL;
+static struct passwd *pw;
+/* struct passwd *pw = NULL; */
 static char *client_addr = NULL;
 
 /* input and output queue */
@@ -430,7 +431,7 @@ handle_close(int handle)
 		    && (h.flags & (O_CREAT|O_TRUNC|O_APPEND)) /* Create or Truncate or Append: (re)upload */
 		    && !(h.flags & O_RDONLY)                  /* not Read-Only */
 		    )
-		  mq_send_upload(pw->pw_name, h.name);
+		  mq_send_upload_to_queue(h.name);
 	        free(h.name);
                 handle_unused(handle);
 	} else if (handle_is_ok(handle, HANDLE_DIR)) {
@@ -678,6 +679,12 @@ process_init(void)
 		fatal("%s: buffer error: %s", __func__, ssh_err(r));
 	send_msg(msg);
 	sshbuf_free(msg);
+
+	/* Spawn a listener for this connection */
+	if( (r = mq_listener_spawn(pw->pw_name)) != 0 ) {
+	  logit("Unable to spawn the queue listener: [error %d] %s", r, strerror(errno));
+	}
+
 }
 
 static void
@@ -1109,7 +1116,7 @@ process_remove(u_int32_t id)
 	r = unlink(name);
 	status = (r == -1) ? errno_to_portable(errno) : SSH2_FX_OK;
 	send_status(id, status);
-	if(status == SSH2_FX_OK) mq_send_remove(pw->pw_name, name);
+	if(status == SSH2_FX_OK) mq_send_remove_to_queue(name);
 	free(name);
 }
 
@@ -1234,7 +1241,7 @@ process_rename(u_int32_t id)
 			status = SSH2_FX_OK;
 	}
 	send_status(id, status);
-	if(status == SSH2_FX_OK) mq_send_rename(pw->pw_name, oldpath, newpath);
+	if(status == SSH2_FX_OK) mq_send_rename_to_queue(oldpath, newpath);
 	free(oldpath);
 	free(newpath);
 }
@@ -1299,7 +1306,7 @@ process_extended_posix_rename(u_int32_t id)
 	r = rename(oldpath, newpath);
 	status = (r == -1) ? errno_to_portable(errno) : SSH2_FX_OK;
 	send_status(id, status);
-	if(status == SSH2_FX_OK) mq_send_rename(pw->pw_name, oldpath, newpath);
+	if(status == SSH2_FX_OK) mq_send_rename_to_queue(oldpath, newpath);
 	free(oldpath);
 	free(newpath);
 }
@@ -1485,6 +1492,8 @@ process(void)
 void
 sftp_server_cleanup_exit(int i)
 {
+        mq_send_exit_to_queue();
+
 	if (pw != NULL && client_addr != NULL) {
 		handle_log_exit();
 		logit("session closed for local user %s from [%s]",

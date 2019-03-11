@@ -1,4 +1,3 @@
-
 #ifndef __MQ_CONFIG_H_INCLUDED__
 #define __MQ_CONFIG_H_INCLUDED__
 
@@ -19,6 +18,8 @@ struct mq_options_s {
   int attempts;        /* number of connection attempts. (int is enough) */
   int retry_delay;     /* in seconds */
   int heartbeat;       /* in seconds */
+
+  char* ipc_key_prefix; /* For the IPC queues */
 };
 
 typedef struct mq_options_s mq_options_t;

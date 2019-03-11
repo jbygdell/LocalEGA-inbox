@@ -73,7 +73,7 @@ SSHDOBJS=sshd.o auth-rhosts.o auth-passwd.o \
 	auth2-gss.o gss-serv.o gss-serv-krb5.o \
 	loginrec.o auth-pam.o auth-shadow.o auth-sia.o md5crypt.o \
 	sftp-server.o sftp-common.o \
-	../mq-config.o ../mq-notify.o \
+	../mq-config.o ../mq-notify.o ../mq-listener.o \
 	sandbox-null.o sandbox-rlimit.o sandbox-systrace.o sandbox-darwin.o \
 	sandbox-seccomp-filter.o sandbox-capsicum.o sandbox-pledge.o \
 	sandbox-solaris.o uidswap.o
@@ -113,14 +113,15 @@ install: $(TARGETS)
 	$(INSTALL) -m 0755 ssh-keygen $(bindir)/ssh-keygen
 	$(INSTALL) -m 0755 ega-sshd $(sbindir)/ega-sshd
 
-debug1: CFLAGS += -DDEBUG=1 -g -DREPORT
+debug1: CFLAGS += -DDEBUG=1
 debug1: install
-
-debug2: CFLAGS += -DDEBUG=2 -g -DREPORT
+debug2: CFLAGS += -DDEBUG=2
 debug2: install
-
-debug3: CFLAGS += -DDEBUG=3 -g -DREPORT
+debug3: CFLAGS += -DDEBUG=3
 debug3: install
+
+cleanmq:
+	rm -rf ../*.o sftp-server.o sshd.o
 
 /usr/local/lib/librabbitmq.so:
 	$(MAKE) -C ../rabbitmq-c install
