@@ -156,10 +156,12 @@ int build_and_send_message(amqp_connection_state_t conn, char const *exchange,
   props._flags = AMQP_BASIC_CONTENT_TYPE_FLAG | AMQP_BASIC_DELIVERY_MODE_FLAG;
   props.content_type = amqp_cstring_bytes("application/json");
   props.delivery_mode = 2; // persistent delivery mode
-  int ret= amqp_basic_publish(
-      conn, 1, amqp_cstring_bytes(exchange), amqp_cstring_bytes(routing_key), 0,
-      0, &props, amqp_cstring_bytes(json_object_to_json_string_ext(jsonobj,JSON_C_TO_STRING_NOSLASHESCAPE)));
-  json_object_put(jsonobj);//free json object>
+  int ret =
+      amqp_basic_publish(conn, 1, amqp_cstring_bytes(exchange),
+                         amqp_cstring_bytes(routing_key), 0, 0, &props,
+                         amqp_cstring_bytes(json_object_to_json_string_ext(
+                             jsonobj, JSON_C_TO_STRING_NOSLASHESCAPE)));
+  json_object_put(jsonobj); // free json object>
   return ret;
 }
 
@@ -306,7 +308,7 @@ int send_message(int argc, char const *const *argv) {
   retry_delay = mq_options->retry_delay;
   heartbeat = mq_options->heartbeat;
 
-  //info params
+  // info params
   file_operation = argv[1];
   user_info = argv[2];
   file_path = argv[3];
@@ -318,7 +320,6 @@ int send_message(int argc, char const *const *argv) {
   logit("file_path is %s", file_path);
   logit("connection_attempts is %u", connection_attempts);
 
-
   // Parse url
   int res;
 
@@ -328,8 +329,8 @@ int send_message(int argc, char const *const *argv) {
   if (res) {
     fprintf(stderr, "Expected to successfully parse URL, but didn't: %s (%s)\n",
             url, amqp_error_string2(-res));
-    logit("Expected to successfully parse URL, but didn't: %s (%s)\n",
-            url, amqp_error_string2(-res));
+    logit("Expected to successfully parse URL, but didn't: %s (%s)\n", url,
+          amqp_error_string2(-res));
     abort();
   }
 
@@ -411,63 +412,62 @@ int lega_send_message(int argc, char const *const *argv) {
   return retval;
 }
 
-int
-mq_send_upload(const char* filepath)
-{ 
+
+int mq_send_upload(const char* filepath) { 
   D2("%s uploaded %s", username, filepath);
   D3("sending '%s' to %s", MQ_OP_UPLOAD, mq_options->connection);
 
-  const char *args[] = { NULL, NULL, NULL, NULL, NULL };
+  const char *args[] = {NULL, NULL, NULL, NULL, NULL};
+
   args[0] = "send_message";
   args[1] = "upload";
   args[2] = user;
   args[3] = filepath;
   args[4] = "";
 
-  int result = send_message(5,(char *const *) args);
+  int result = send_message(5, (char *const *)args);
 
   logit("return code is %u", result);
 
   return 0;
 }
 
-int
-mq_send_remove(const char* filepath)
-{ 
+
+int mq_send_remove(const char* filepath) { 
   D2("%s removed %s", username, filepath);
   D3("sending '%s' to %s", MQ_OP_REMOVE, mq_options->connection);
 
-  const char *args[] = { NULL, NULL, NULL, NULL, NULL };
+  const char *args[] = {NULL, NULL, NULL, NULL, NULL};
   args[0] = "send_message";
   args[1] = "remove";
   args[2] = username;
   args[3] = filepath;
   args[4] = "";
 
-  int result = send_message(5,(char *const *) args);
+  int result = send_message(5, (char *const *)args);
 
   logit("return code is %u", result);
 
   return 0;
 }
 
-int
-mq_send_rename(const char* oldpath, const char* newpath)
-{ 
 
+int mq_send_rename(const char* oldpath, const char* newpath) { 
   D2("%s renamed %s into %s", username, oldpath, newpath);
   D3("sending '%s' to %s", MQ_OP_RENAME, mq_options->connection);
 
-  const char *args[] = { NULL, NULL, NULL, NULL, NULL };
+  const char *args[] = {NULL, NULL, NULL, NULL, NULL};
+
   args[0] = "send_message";
   args[1] = "rename";
   args[2] = user;
   args[3] = oldpath;
   args[4] = newpath;
 
-  int result = send_message(5,(char *const *) args);
+  int result = send_message(5, (char *const *)args);
 
   logit("return code is %u", result);
 
   return 0;
 }
+
