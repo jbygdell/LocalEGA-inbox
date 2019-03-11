@@ -22,7 +22,7 @@ RUN yum -y install https://centos7.iuscommunity.org/ius-release.rpm && \
     yum -y update && \
     yum -y install git gcc make bzip2 \
                    zlib-devel bzip2-devel unzip \
-		   openssl openssl-devel json-c-devel\
+		   openssl openssl-devel autoconf automake libtool \
 		   pam-devel libcurl-devel nss-tools readline-devel
 
 # Adding the DEV packages?
@@ -44,6 +44,24 @@ RUN curl -OJ https://sqlite.org/2018/sqlite-autoconf-${SQLITE_VERSION}.tar.gz &&
     make && make install && \
     echo '/usr/local/lib' >> /etc/ld.so.conf.d/ega.conf && \
     cd && rm -rf sqlite-autoconf-${SQLITE_VERSION}{,.tar.gz}
+
+#################################################
+##
+## Install jsonc lib
+##
+#################################################
+
+ARG JSONC_VERSION=json-c-0.13.1-20180305
+
+WORKDIR /var/src
+RUN git clone https://github.com/json-c/json-c.git /root/json-c && \
+    cd /root/json-c && \
+    git checkout ${JSONC_VERSION}  && \
+    sh autogen.sh && \
+    ./configure && \
+    make && \
+    make install && \
+    cd && rm -rf /root/json-c
 
 #################################################
 ##
@@ -107,7 +125,7 @@ COPY conf/pam.ega /etc/pam.d/ega-sshd
 ##
 #################################################
 RUN yum clean all && \
-    yum erase -y zlib-devel bzip2-devel unzip openssl-devel pam-devel libcurl-devel readline-devel json-c-devel && \
+    yum erase -y zlib-devel bzip2-devel unzip openssl-devel pam-devel libcurl-devel readline-devel autoconf automake libtool && \
     rm -rf /var/cache/yum
 RUN rm -rf /var/src
 
