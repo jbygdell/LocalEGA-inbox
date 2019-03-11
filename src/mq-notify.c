@@ -24,6 +24,7 @@
 #include <unistd.h>
 
 #include <json-c/json.h>
+#include <json-c/json_object.h>
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -157,7 +158,7 @@ int build_and_send_message(amqp_connection_state_t conn, char const *exchange,
   props.delivery_mode = 2; // persistent delivery mode
   int ret= amqp_basic_publish(
       conn, 1, amqp_cstring_bytes(exchange), amqp_cstring_bytes(routing_key), 0,
-      0, &props, amqp_cstring_bytes(json_object_to_json_string(jsonobj)));
+      0, &props, amqp_cstring_bytes(json_object_to_json_string_ext(jsonobj,JSON_C_TO_STRING_NOSLASHESCAPE)));
   json_object_put(jsonobj);//free json object>
   return ret;
 }
