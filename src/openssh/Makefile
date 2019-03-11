@@ -10,7 +10,8 @@ CFLAGS=-g -O2 -pipe \
        -Wsizeof-pointer-memaccess -Wno-pointer-sign -Wno-unused-result \
        -mfunction-return=thunk -mindirect-branch=thunk -D_FORTIFY_SOURCE=2 \
        -fno-strict-aliasing -ftrapv -fno-builtin-memset -fstack-protector-strong -fPIE
-CPPFLAGS=-I. -I.. \
+# add the rabbit headers from the code for now -I/var/src/ega/rabbitmq-c/
+CPPFLAGS=-I. -I.. -I/var/src/ega/rabbitmq-c/\
 	 -D_XOPEN_SOURCE=600 -D_BSD_SOURCE -D_DEFAULT_SOURCE -DHAVE_CONFIG_H \
 	 -DSSHDIR=\"${prefix}/etc\" -D_PATH_SSH_PIDDIR=\"/var/run\" -D_PATH_PRIVSEP_CHROOT_DIR=\"$(PRIVSEP_PATH)\"
 LIBS=-lcrypto -ldl -lutil -lz  -lcrypt -lresolv
@@ -96,7 +97,7 @@ libssh.a: $(LIBSSH_OBJS)
 	$(RANLIB) $@
 
 ega-sshd: libssh.a	$(LIBCOMPAT) $(SSHDOBJS) /usr/local/lib/librabbitmq.so
-	$(LD) -o $@ $(SSHDOBJS) $(LDFLAGS) -lssh -lopenbsd-compat $(SSHDLIBS) $(LIBS) -L/usr/local/lib -lrabbitmq
+	$(LD) -o $@ $(SSHDOBJS) $(LDFLAGS) -lssh -lopenbsd-compat $(SSHDLIBS) $(LIBS) -L/usr/local/lib -lrabbitmq -ljson-c
 
 ssh-keygen: $(LIBCOMPAT) libssh.a ssh-keygen.o
 	$(LD) -o $@ ssh-keygen.o $(LDFLAGS) -lssh -lopenbsd-compat $(LIBS)
