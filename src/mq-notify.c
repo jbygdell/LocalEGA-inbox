@@ -14,6 +14,21 @@ extern char* username;
  *
  * Send the messages to the broker 
  *
+ * They are JSON formatted as
+ *
+ * {
+ *                  'user': <str>,
+ *              'filepath': <str>,
+ *             'operation': "upload|remove|rename",
+ *              'filesize': <num>,
+ *               'oldpath': <str>, // Ignored if not "rename"
+ *          'file_created': <num>, // a UNIX timestamp
+ *    'file_last_modified': <num>, // a UNIX timestamp
+ *   'encrypted_checksums': [{ 'hash': "md5|sha256", value: <checksum as HEX> },
+ *                           { 'hash': "md5|sha256", value: <checksum as HEX> },
+ *                           ...
+ *                          ]
+ * }
  *
  */
 #define MQ_OP_UPLOAD "up"
