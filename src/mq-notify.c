@@ -19,13 +19,13 @@ extern char* username;
  * {
  *                  'user': <str>,
  *              'filepath': <str>,
- *             'operation': "upload|remove|rename",
+ *             'operation': ( "upload" | "remove" | "rename" ),
  *              'filesize': <num>,
  *               'oldpath': <str>, // Ignored if not "rename"
  *          'file_created': <num>, // a UNIX timestamp
  *    'file_last_modified': <num>, // a UNIX timestamp
- *   'encrypted_checksums': [{ 'type': <str>, value: <checksum as HEX> },
- *                           { 'type': <str>, value: <checksum as HEX> },
+ *   'encrypted_checksums': [{ 'type': <str>, 'value': <checksum as HEX> },
+ *                           { 'type': <str>, 'value': <checksum as HEX> },
  *                           ...
  *                          ]
  * }
