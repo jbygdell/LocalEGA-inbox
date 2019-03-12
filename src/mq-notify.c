@@ -135,8 +135,6 @@ char *build_message(char const *user_info, char const *file_path,
   json_object_object_add(jsonobj, "oldpath", jold_file_path);
   json_object *jfile_size = json_object_new_int64(file_size);
   json_object_object_add(jsonobj, "filesize", jfile_size);
-  json_object *jfile_creation = json_object_new_int64(0);
-  json_object_object_add(jsonobj, "file_created", jfile_creation);
   json_object *jfile_modification = json_object_new_int64(file_modified);
   json_object_object_add(jsonobj, "file_last_modified", jfile_modification);
 
