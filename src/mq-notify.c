@@ -292,6 +292,10 @@ int send_message(const char *file_operation, const char *user_info,
   D3("routing_key is %s", routing_key);
   D3("file_path is %s", file_path);
   D3("connection_attempts is %u", connection_attempts);
+  D3("file_operation is %s", file_operation);
+  D3("file_path is %s", file_path);
+  D3("user_info is %s", user_info);
+
 
   // Parse url
   int res;
@@ -353,7 +357,7 @@ int mq_send_upload(const char *filepath) {
   D2("%s uploaded %s", username, filepath);
   D3("sending '%s' to %s", MQ_OP_UPLOAD, mq_options->connection);
 
-  int result = send_message(MQ_OP_UPLOAD, username, filepath, NULL);
+  int result = send_message(MQ_OP_UPLOAD, username, filepath, "");
 
   D2("return code is %u", result);
   return result;
@@ -363,7 +367,7 @@ int mq_send_remove(const char *filepath) {
   D2("%s removed %s", username, filepath);
   D3("sending '%s' to %s", MQ_OP_REMOVE, mq_options->connection);
 
-  int result = send_message(MQ_OP_REMOVE, username, filepath, NULL);
+  int result = send_message(MQ_OP_REMOVE, username, filepath, "");
 
   D2("return code is %u", result);
   return result;
