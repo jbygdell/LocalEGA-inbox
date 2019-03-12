@@ -431,7 +431,7 @@ handle_close(int handle)
 		    && (h.flags & (O_CREAT|O_TRUNC|O_APPEND)) /* Create or Truncate or Append: (re)upload */
 		    && !(h.flags & O_RDONLY)                  /* not Read-Only */
 		    )
-		  mq_send_upload_to_queue(h.name);
+		  ipc_send_upload(h.name);
 	        free(h.name);
                 handle_unused(handle);
 	} else if (handle_is_ok(handle, HANDLE_DIR)) {
@@ -1116,7 +1116,7 @@ process_remove(u_int32_t id)
 	r = unlink(name);
 	status = (r == -1) ? errno_to_portable(errno) : SSH2_FX_OK;
 	send_status(id, status);
-	if(status == SSH2_FX_OK) mq_send_remove_to_queue(name);
+	if(status == SSH2_FX_OK) ipc_send_remove(name);
 	free(name);
 }
 
@@ -1241,7 +1241,7 @@ process_rename(u_int32_t id)
 			status = SSH2_FX_OK;
 	}
 	send_status(id, status);
-	if(status == SSH2_FX_OK) mq_send_rename_to_queue(oldpath, newpath);
+	if(status == SSH2_FX_OK) ipc_send_rename(oldpath, newpath);
 	free(oldpath);
 	free(newpath);
 }
@@ -1306,7 +1306,7 @@ process_extended_posix_rename(u_int32_t id)
 	r = rename(oldpath, newpath);
 	status = (r == -1) ? errno_to_portable(errno) : SSH2_FX_OK;
 	send_status(id, status);
-	if(status == SSH2_FX_OK) mq_send_rename_to_queue(oldpath, newpath);
+	if(status == SSH2_FX_OK) ipc_send_rename(oldpath, newpath);
 	free(oldpath);
 	free(newpath);
 }
@@ -1492,7 +1492,8 @@ process(void)
 void
 sftp_server_cleanup_exit(int i)
 {
-        mq_send_exit_to_queue();
+
+        ipc_send_exit();
 
 	if (pw != NULL && client_addr != NULL) {
 		handle_log_exit();

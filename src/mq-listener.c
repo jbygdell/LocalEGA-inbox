@@ -8,6 +8,8 @@
 #include <signal.h>
 #include <errno.h>
 
+#include "openbsd-compat/bsd-misc.h"
+
 #include "mq-utils.h"
 #include "mq-config.h"
 #include "mq-msg.h"
@@ -18,9 +20,12 @@
 int msg_queue_id = -1;
 char* username = NULL;
 
+/* Whether we are a listener or still the internal-sftp */
+int is_listener = 0;
+
 extern void sftp_server_cleanup_exit(int i);
 
-static int mq_listener_loop(void);
+static void mq_listener_loop(void);
 
 int
 mq_listener_spawn(const char* user)
@@ -60,10 +65,20 @@ mq_listener_spawn(const char* user)
   child = fork();
   if (child == 0) {
 
+    extern char *__progname;
+    __progname = ssh_get_progname("mq-listener");
+
+    is_listener = 1; /* We are a listener */
+
     D1("Forking for user %s", username);
-    rc = mq_listener_loop();
+    mq_listener_loop();
     D1("Listener terminated");
 
+    /* Clean the queue. On success, IPC_RMID returns 0 */
+    rc = msgctl(msg_queue_id, IPC_RMID, NULL); 
+    /* And exit */
+    if(username) free(username);
+    username = NULL;
     sftp_server_cleanup_exit(rc);
      
   } else if (child > 0) {
@@ -84,7 +99,7 @@ mq_listener_spawn(const char* user)
 }
 
 
-static int
+static void
 mq_listener_loop(void)
 {
      mq_msg_t msg;
@@ -98,26 +113,26 @@ mq_listener_loop(void)
 
 #if DEBUG > 2
        msgctl(msg_queue_id, IPC_STAT, &buf);
-       D3("[%d] # messages in queue %d: %d\n", count, msg_queue_id, (int)buf.msg_qnum);
+       D3("[%d] # messages in queue %d: %d", count, msg_queue_id, (int)buf.msg_qnum);
        count++;
 #endif
        /* Pick any message. Msg is reused (no need to clean first) */
-       msgrcv(msg_queue_id, &msg, sizeof(msg), 0, 0); /* Blocking call */
+       msgrcv(msg_queue_id, &msg, sizeof(msg) - sizeof(long), 0, 0); /* Blocking call */
+
+       D3("received message of type %ld", msg.type);
 
        switch(msg.type){
        case MSG_EXIT:
 	 go_on = 0; /* Exit the loop */
-	 if(username) free(username);
-	 username = NULL;
 	 break;
        case MSG_UPLOAD:
-	 mq_send_upload(msg.filepath);
+	 mq_send_upload(msg.path);
 	 break;
        case MSG_REMOVE:
-	 mq_send_remove(msg.filepath);
+	 mq_send_remove(msg.path);
 	 break;
        case MSG_RENAME:
-	 mq_send_rename(msg.filepath_old, msg.filepath);
+	 mq_send_rename(msg.oldpath, msg.path);
 	 break;
        default:
 	 D1("Unknown message type: %ld", msg.type);
@@ -126,11 +141,6 @@ mq_listener_loop(void)
      }
 
      D2("Listener loop exited");
-
-     /* Clean the queue.
-	On success, IPC_RMID returns 0
-     */
-     return msgctl(msg_queue_id, IPC_RMID, NULL); 
 }
 
 
@@ -142,62 +152,70 @@ mq_listener_loop(void)
 static int _send_msg_to_queue(const mq_msg_t* msg);
 
 int
-mq_send_upload_to_queue(const char* filepath)
+ipc_send_upload(const char* filepath)
 { 
-  D2("%s uploaded %s", username, filepath);
+  D2("[IPC] %s uploaded %s", username, filepath);
 
   mq_msg_t msg;
   msg.type = MSG_UPLOAD;
-  msg.filepath = (char*)filepath;
-  msg.filepath_len = strlen(filepath);
-  msg.filepath_old = NULL;
-  msg.filepath_len = 0;
+  memset(msg.path, '\0', sizeof(msg.path));
+  size_t path_len = strlen(filepath);
+  strncpy(msg.path, filepath, MIN(sizeof(msg.path), path_len));
+  /* memset(msg.oldpath, '\0', sizeof(msg.oldpath)); */
 
   return _send_msg_to_queue(&msg);
 }
 
 int
-mq_send_remove_to_queue(const char* filepath)
+ipc_send_remove(const char* filepath)
 { 
-  D2("%s removed %s", username, filepath);
+  D2("[IPC] %s removed %s", username, filepath);
 
   mq_msg_t msg;
   msg.type = MSG_REMOVE;
-  msg.filepath = (char*)filepath;
-  msg.filepath_len = strlen(filepath);
-  msg.filepath_old = NULL;
-  msg.filepath_len = 0;
+  memset(msg.path, '\0', sizeof(msg.path));
+  size_t path_len = strlen(filepath);
+  strncpy(msg.path, filepath, MIN(sizeof(msg.path), path_len));
+  /* memset(msg.path_old, '\0', sizeof(msg.path_old)); */
 
   return _send_msg_to_queue(&msg);
 }
 
-
 int
-mq_send_rename_to_queue(const char* oldpath, const char* newpath)
+ipc_send_rename(const char* oldpath, const char* newpath)
 { 
-  D2("%s renamed %s into %s", username, oldpath, newpath);
+  D2("[IPC] %s renamed %s into %s", username, oldpath, newpath);
 
   mq_msg_t msg;
   msg.type = MSG_RENAME;
-  msg.filepath = (char*)newpath;
-  msg.filepath_len = strlen(newpath);
-  msg.filepath_old = (char*)oldpath;
-  msg.filepath_len = strlen(oldpath);
+
+  size_t path_len = strlen(newpath);
+  memset(msg.path, '\0', sizeof(msg.path));
+  strncpy(msg.path, newpath, MIN(sizeof(msg.path), path_len));
+
+  path_len = strlen(oldpath);
+  memset(msg.oldpath, '\0', sizeof(msg.oldpath));
+  strncpy(msg.oldpath, oldpath, MIN(sizeof(msg.oldpath), path_len));
 
   return _send_msg_to_queue(&msg);
 }
 
 int
-mq_send_exit_to_queue()
+ipc_send_exit()
 {
-  D2("Sending exit to queue");
+
+  if( is_listener == 1 ){
+    D2("[IPC] Listener not sending the exit message");
+    return 0;
+  }
+
+  /* Otherwise */
+  D2("[IPC] Sending exit to queue");
 
   mq_msg_t msg;
   msg.type = MSG_EXIT;
-  msg.filepath = NULL;
-  msg.filepath_len = 0;
-  msg.filepath_old = NULL;
-  msg.filepath_len = 0;
+  /* memset(msg.path, '\0', sizeof(msg.path)); */
+  /* memset(msg.path_old, '\0', sizeof(msg.path_old)); */
 
   return _send_msg_to_queue(&msg);
 }
@@ -205,12 +223,12 @@ mq_send_exit_to_queue()
 static int
 _send_msg_to_queue(const mq_msg_t* msg)
 { 
-  D3("Sending message of type %ld", msg->type);
-  if(!msgsnd(msg_queue_id, (const void *)msg, sizeof(*msg), 0) /* no flags */ ){
+  D3("[IPC] Sending message of type %ld", msg->type);
+  if(msgsnd(msg_queue_id, (const void *)msg, sizeof(*msg) - sizeof(long), 0) /* no flags */ ){
     D1("Oh oh, we could not send the message.");
     return -1;
   }
-  D3("Message sent");
+  D3("[IPC] Message sent");
 
   /* TODO: Improve the log output above */
   return 0;

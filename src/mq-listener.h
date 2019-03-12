@@ -6,9 +6,9 @@ extern char* username;
 
 int mq_listener_spawn(const char* username);
 
-int mq_send_upload_to_queue(const char* filepath);
-int mq_send_remove_to_queue(const char* filepath);
-int mq_send_rename_to_queue(const char* oldpath, const char* newpath);
-int mq_send_exit_to_queue();
+int ipc_send_upload(const char* filepath);
+int ipc_send_remove(const char* filepath);
+int ipc_send_rename(const char* oldpath, const char* newpath);
+int ipc_send_exit();
 
 #endif /* !__MQ_LISTENER_H_INCLUDED__ */

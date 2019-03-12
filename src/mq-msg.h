@@ -1,7 +1,11 @@
 #ifndef __MQ_MSG_H_INCLUDED__
 #define __MQ_MSG_H_INCLUDED__
 
-#include <sys/types.h>
+/* #include <sys/types.h> */
+#include <limits.h>
+
+/* On Linux, it's 4096 */
+#define MQ_PATH_MAX PATH_MAX
 
 /* The operation is encoded in the message type */
 #define MSG_UPLOAD 1L
@@ -9,18 +13,22 @@
 #define MSG_RENAME 3L
 #define MSG_EXIT   4L
 
-/* The filename is malloc-ed and we keep track of its length.
-   Hopefully, copying the msg into the queue will not only copy the pointer,
-   and it will know about to copy the bytes from the filepaths.
+/*
+  From: https://linux.die.net/man/3/msgsnd
 
-   Use NULL and 0 if there is no filepath_old (ie, if not a rename operation).
+  We need to define a struct that contains a field of type long,
+  and then a data portion.
+
+  We cannot pass char pointers, since it would point to unknown memory
+  for the listener.
+
+  We use char arrays of fixed sizes for the data portion.
+  Increase the size at compile time if not enough.
 */
 struct mq_msg_s {
   long type;
-  char* filepath;
-  size_t filepath_len;
-  char* filepath_old;
-  size_t filepath_old_len;
+  char path[MQ_PATH_MAX];
+  char oldpath[MQ_PATH_MAX];
 };
 
 typedef struct mq_msg_s mq_msg_t;
