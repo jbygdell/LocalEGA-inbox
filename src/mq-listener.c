@@ -7,15 +7,45 @@
 #include <sys/msg.h>
 #include <signal.h>
 #include <errno.h>
+#include <limits.h>
 
 #include "openbsd-compat/bsd-misc.h"
 #include "log.h"
 
 #include "mq-utils.h"
 #include "mq-config.h"
-#include "mq-msg.h"
 #include "mq-notify.h"
 #include "mq-listener.h"
+
+/* The operation is encoded in the message type */
+#define MSG_UPLOAD 1L
+#define MSG_REMOVE 2L
+#define MSG_RENAME 3L
+#define MSG_EXIT   4L
+
+/*
+  From: https://linux.die.net/man/3/msgsnd
+
+  We need to define a struct that contains a field of type long,
+  and then a data portion.
+
+  We cannot pass char pointers, since it would point to unknown memory
+  for the listener.
+
+  We use char arrays of fixed sizes for the data portion.
+  Increase the size at compile time if not enough.
+*/
+
+/* On Linux, it's 4096 */
+#define MQ_PATH_MAX PATH_MAX
+
+struct mq_msg_s {
+  long type;
+  char path[MQ_PATH_MAX];
+  char oldpath[MQ_PATH_MAX];
+};
+
+typedef struct mq_msg_s mq_msg_t;
 
 /* Queue ID for message between this process and its spawn listener */
 int msg_queue_id = -1;
