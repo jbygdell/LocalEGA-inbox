@@ -101,9 +101,8 @@ int sha256_file(char const *path, char outputBuffer[65]) {
   return 0;
 }
 
-char* build_message(char const *user_info,
-                           char const *file_path, char const *file_operation,
-                           char const *old_file_path) {
+char *build_message(char const *user_info, char const *file_path,
+                    char const *file_operation, char const *old_file_path) {
 
   D3("build and send message");
   struct stat st;
@@ -117,7 +116,7 @@ char* build_message(char const *user_info,
     // obtain filesize
     stat(file_path, &st);
     file_size = st.st_size;
-    file_modified=st.st_mtime;
+    file_modified = st.st_mtime;
     D3("Size is %u", (int)file_size);
     // Obtain file_hash
     sha256_file(file_path, file_hash);
@@ -152,17 +151,17 @@ char* build_message(char const *user_info,
 
   json_object_object_add(jsonobj, "encrypted_checksums", jarray);
 
-
-  const char* json_string = json_object_to_json_string_ext(jsonobj, JSON_C_TO_STRING_NOSLASHESCAPE);
-  char *res = malloc (strlen(json_string)+1);
-  strcpy(res, json_string);  
+  const char *json_string =
+      json_object_to_json_string_ext(jsonobj, JSON_C_TO_STRING_NOSLASHESCAPE);
+  char *res = malloc(strlen(json_string) + 1);
+  strcpy(res, json_string);
 
   json_object_put(jsonobj); // free json object
   return res;
 }
 
 int send_rabbit_message(amqp_connection_state_t conn, char const *exchange,
-                           char const *routing_key, char const *message) {
+                        char const *routing_key, char const *message) {
 
   D3("Exchange:%s, Routing_key:%s", exchange, routing_key);
 
@@ -171,11 +170,10 @@ int send_rabbit_message(amqp_connection_state_t conn, char const *exchange,
   props._flags = AMQP_BASIC_CONTENT_TYPE_FLAG | AMQP_BASIC_DELIVERY_MODE_FLAG;
   props.content_type = amqp_cstring_bytes("application/json");
   props.delivery_mode = 2; // persistent delivery mode
-  int ret =
-      amqp_basic_publish(conn, 1, amqp_cstring_bytes(exchange),
-                         amqp_cstring_bytes(routing_key), 0, 0, &props,
-                         amqp_cstring_bytes(message));
-
+  int ret = amqp_basic_publish(conn, 1, amqp_cstring_bytes(exchange),
+                               amqp_cstring_bytes(routing_key), 0, 0, &props,
+                               amqp_cstring_bytes(message));
+  D3("return code is %u", ret);
   return ret;
 }
 
@@ -316,7 +314,6 @@ int send_message(const char *file_operation, const char *user_info,
   D3("file_path is %s", file_path);
   D3("user_info is %s", user_info);
 
-
   // Parse url
   int res;
   char *message = NULL;
@@ -328,11 +325,12 @@ int send_message(const char *file_operation, const char *user_info,
        amqp_error_string2(-res));
     abort();
   }
-  //Build message
+  // Build message
   message = build_message(user_info, file_path, file_operation, new_file_path);
 
   int current_attempt = 0;
   int has_failed = 1;
+
   while (has_failed && current_attempt < connection_attempts) {
     has_failed = 0;
     D2("Current_attempt:%u/%u", current_attempt, connection_attempts);
@@ -340,35 +338,34 @@ int send_message(const char *file_operation, const char *user_info,
       D3("Sleeping...");
       sleep(retry_delay);
     }
-    conn = amqp_new_connection();
-    D3("Init connection");
-    int init_result = init_connection(conn, &ci, heartbeat);
-    if (init_result < 0) {
-      has_failed = 1;
-      D2("Init connection has failed");
-      goto end;
+    if (!conn) {
+      conn = amqp_new_connection();
+      int init_conn = init_connection(conn, &ci, heartbeat);
+      if (init_conn < 0) {
+        has_failed = 1;
+        goto end;
+      }
     }
 
     D3("Send message");
-   
-    D3("message is: %s", message);
-
     int rabbit_status =
         send_rabbit_message(conn, exchange, routing_key, message);
-    if (rabbit_status < 0) {
+    D3("rabbit_status is %d", rabbit_status);
+    if (rabbit_status != 0) {
       D2("Rabbit send has failed");
       has_failed = 1;
-      goto end;
     }
 
-    int close_result;
   end:
-    D3("Close message");
-    close_result = close_connection(conn, &ci);
-    if (close_result < 0) {
-      has_failed = 1;
-      D2("Close connection has failed");
+    if (has_failed) {
+      D3("Close message");
+      int close_result = close_connection(conn, &ci);
+      if (close_result < 0) {
+        D2("Close connection has failed");
+      }
+      conn = NULL;
     }
+
     current_attempt++;
   }
   if (message) {
@@ -403,7 +400,7 @@ int mq_send_rename(const char *oldpath, const char *newpath) {
   D2("%s renamed %s into %s", username, newpath, oldpath);
   D3("sending '%s' to %s", MQ_OP_RENAME, mq_options->connection);
 
-  int result = send_message(MQ_OP_RENAME, username, newpath, oldpath );
+  int result = send_message(MQ_OP_RENAME, username, newpath, oldpath);
 
   D2("return code is %u", result);
   return result;
