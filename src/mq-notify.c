@@ -31,7 +31,7 @@ extern char* username;
  * }
  *
  * The checksum algorithm type is 'md5', or 'sha256'.
- * 'sha256' is prefered.
+ * 'sha256' is preferred.
  */
 #define MQ_OP_UPLOAD "up"
 #define MQ_OP_REMOVE "rm"
