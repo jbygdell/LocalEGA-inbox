@@ -1,15 +1,25 @@
 #include <stdarg.h>
-#include <unistd.h>
 #include <string.h>
 #include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/msg.h>
 
 #include "mq-utils.h"
 #include "mq-config.h"
 #include "mq-notify.h"
 
-extern char* username;
+int mq_init(void){
+  D2("Initializing connection to message broker");
+  return 0;
+}
+
+/* int mq_open_channel(void){ */
+/*   D2("Open channel to message broker"); */
+/*   return 0; */
+/* } */
+
+int mq_clean(void){
+  D2("Cleaning connection to message broker");
+  return 0;
+}
 
 /*
  *
@@ -38,28 +48,25 @@ extern char* username;
 #define MQ_OP_RENAME "mv"
 
 int
-mq_send_upload(const char* filepath)
+mq_send_upload(const char* username, const char* filepath)
 { 
   D2("%s uploaded %s", username, filepath);
   D3("sending '%s' to %s", MQ_OP_UPLOAD, mq_options->connection);
-  sleep(1);
   return 0;
 }
 
 int
-mq_send_remove(const char* filepath)
+mq_send_remove(const char* username, const char* filepath)
 { 
   D2("%s removed %s", username, filepath);
   D3("sending '%s' to %s", MQ_OP_REMOVE, mq_options->connection);
-  sleep(1);
   return 0;
 }
 
 int
-mq_send_rename(const char* oldpath, const char* newpath)
+mq_send_rename(const char* username, const char* oldpath, const char* newpath)
 { 
   D2("%s renamed %s into %s", username, oldpath, newpath);
   D3("sending '%s' to %s", MQ_OP_RENAME, mq_options->connection);
-  sleep(1);
   return 0;
 }

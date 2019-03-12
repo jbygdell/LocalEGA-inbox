@@ -51,7 +51,7 @@
 #include "sftp.h"
 #include "sftp-common.h"
 
-#include "mq-listener.h"
+#include "mq-notify.h"
 
 /* Our verbosity */
 static LogLevel log_level = SYSLOG_LEVEL_ERROR;
@@ -73,9 +73,6 @@ static int init_done;
 
 /* Disable writes */
 static int readonly;
-
-/* If we are a listener */
-extern int is_listener;
 
 /* Requests that are allowed/denied */
 static char *request_whitelist, *request_blacklist;
@@ -434,7 +431,7 @@ handle_close(int handle)
 		    && (h.flags & (O_CREAT|O_TRUNC|O_APPEND)) /* Create or Truncate or Append: (re)upload */
 		    && !(h.flags & O_RDONLY)                  /* not Read-Only */
 		    )
-		  ipc_send_upload(h.name);
+		  mq_send_upload(pw->pw_name, h.name);
 	        free(h.name);
                 handle_unused(handle);
 	} else if (handle_is_ok(handle, HANDLE_DIR)) {
@@ -684,8 +681,8 @@ process_init(void)
 	sshbuf_free(msg);
 
 	/* Spawn a listener for this connection */
-	if( (r = mq_listener_spawn(pw->pw_name)) != 0 ) {
-	  logit("Unable to spawn the queue listener: [error %d] %s", r, strerror(errno));
+	if( (r = mq_init()) != 0 ) {
+	  logit("Unable to initialize a connection to the broker: [error %d] %s", r, strerror(errno));
 	}
 
 }
@@ -1119,7 +1116,7 @@ process_remove(u_int32_t id)
 	r = unlink(name);
 	status = (r == -1) ? errno_to_portable(errno) : SSH2_FX_OK;
 	send_status(id, status);
-	if(status == SSH2_FX_OK) ipc_send_remove(name);
+	if(status == SSH2_FX_OK) mq_send_remove(pw->pw_name, name);
 	free(name);
 }
 
@@ -1244,7 +1241,7 @@ process_rename(u_int32_t id)
 			status = SSH2_FX_OK;
 	}
 	send_status(id, status);
-	if(status == SSH2_FX_OK) ipc_send_rename(oldpath, newpath);
+	if(status == SSH2_FX_OK) mq_send_rename(pw->pw_name, oldpath, newpath);
 	free(oldpath);
 	free(newpath);
 }
@@ -1309,7 +1306,7 @@ process_extended_posix_rename(u_int32_t id)
 	r = rename(oldpath, newpath);
 	status = (r == -1) ? errno_to_portable(errno) : SSH2_FX_OK;
 	send_status(id, status);
-	if(status == SSH2_FX_OK) ipc_send_rename(oldpath, newpath);
+	if(status == SSH2_FX_OK) mq_send_rename(pw->pw_name, oldpath, newpath);
 	free(oldpath);
 	free(newpath);
 }
@@ -1495,18 +1492,13 @@ process(void)
 void
 sftp_server_cleanup_exit(int i)
 {
-        if(!is_listener)
-	  ipc_send_exit();
+
+        mq_clean();
 
 	if (pw != NULL && client_addr != NULL) {
 		handle_log_exit();
-		if(is_listener == 1){
-		  logit("[MQ] listener closed for local user %s from [%s]",
-			pw->pw_name, client_addr);
-		} else {
-		  logit("session closed for local user %s from [%s]",
-			pw->pw_name, client_addr);
-		}
+		logit("session closed for local user %s from [%s]",
+		      pw->pw_name, client_addr);
 	}
 	_exit(i);
 }
