@@ -74,6 +74,9 @@ static int init_done;
 /* Disable writes */
 static int readonly;
 
+/* If we are a listener */
+extern int is_listener;
+
 /* Requests that are allowed/denied */
 static char *request_whitelist, *request_blacklist;
 
@@ -1492,13 +1495,18 @@ process(void)
 void
 sftp_server_cleanup_exit(int i)
 {
-
-        ipc_send_exit();
+        if(!is_listener)
+	  ipc_send_exit();
 
 	if (pw != NULL && client_addr != NULL) {
 		handle_log_exit();
-		logit("session closed for local user %s from [%s]",
-		    pw->pw_name, client_addr);
+		if(is_listener == 1){
+		  logit("[MQ] listener closed for local user %s from [%s]",
+			pw->pw_name, client_addr);
+		} else {
+		  logit("session closed for local user %s from [%s]",
+			pw->pw_name, client_addr);
+		}
 	}
 	_exit(i);
 }

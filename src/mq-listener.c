@@ -9,6 +9,7 @@
 #include <errno.h>
 
 #include "openbsd-compat/bsd-misc.h"
+#include "log.h"
 
 #include "mq-utils.h"
 #include "mq-config.h"
@@ -18,6 +19,7 @@
 
 /* Queue ID for message between this process and its spawn listener */
 int msg_queue_id = -1;
+
 char* username = NULL;
 
 /* Whether we are a listener or still the internal-sftp */
@@ -65,9 +67,7 @@ mq_listener_spawn(const char* user)
   child = fork();
   if (child == 0) {
 
-    extern char *__progname;
-    __progname = ssh_get_progname("mq-listener");
-
+    D1("Flagging the listener for %s", username);
     is_listener = 1; /* We are a listener */
 
     D1("Forking for user %s", username);
@@ -203,13 +203,6 @@ ipc_send_rename(const char* oldpath, const char* newpath)
 int
 ipc_send_exit()
 {
-
-  if( is_listener == 1 ){
-    D2("[IPC] Listener not sending the exit message");
-    return 0;
-  }
-
-  /* Otherwise */
   D2("[IPC] Sending exit to queue");
 
   mq_msg_t msg;
