@@ -350,7 +350,7 @@ int send_message(const char *file_operation, const char *user_info,
 
   free(url);
   D3("Done");
-  return has_failed;
+  return -has_failed;
 }
 
 int mq_send_upload(const char *filepath) {
