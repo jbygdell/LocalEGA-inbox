@@ -101,21 +101,23 @@ int sha256_file(char const *path, char outputBuffer[65]) {
   return 0;
 }
 
-int build_and_send_message(amqp_connection_state_t conn, char const *exchange,
-                           char const *routing_key, char const *user_info,
+char* build_message(char const *user_info,
                            char const *file_path, char const *file_operation,
-                           char const *new_file_path) {
+                           char const *old_file_path) {
+
   D3("build and send message");
   struct stat st;
 
   off_t file_size = 0;
   char file_hash[65] = "";
+  time_t file_modified = 0;
 
   if (strcmp(file_operation, MQ_OP_REMOVE) != 0 &&
       strcmp(file_operation, MQ_OP_RENAME) != 0) {
     // obtain filesize
     stat(file_path, &st);
     file_size = st.st_size;
+    file_modified=st.st_mtime;
     D3("Size is %u", (int)file_size);
     // Obtain file_hash
     sha256_file(file_path, file_hash);
@@ -127,21 +129,40 @@ int build_and_send_message(amqp_connection_state_t conn, char const *exchange,
   json_object *juser = json_object_new_string(user_info);
   json_object_object_add(jsonobj, "user", juser);
   json_object *jfile_operation = json_object_new_string(file_operation);
-  json_object_object_add(jsonobj, "file_operation", jfile_operation);
+  json_object_object_add(jsonobj, "operation", jfile_operation);
   json_object *jfile_path = json_object_new_string(file_path);
-  json_object_object_add(jsonobj, "file_path", jfile_path);
-  json_object *jnew_file_path = json_object_new_string(new_file_path);
-  json_object_object_add(jsonobj, "new_file_path", jnew_file_path);
+  json_object_object_add(jsonobj, "filepath", jfile_path);
+  json_object *jold_file_path = json_object_new_string(old_file_path);
+  json_object_object_add(jsonobj, "oldpath", jold_file_path);
   json_object *jfile_size = json_object_new_int64(file_size);
   json_object_object_add(jsonobj, "filesize", jfile_size);
+  json_object *jfile_creation = json_object_new_int64(0);
+  json_object_object_add(jsonobj, "file_created", jfile_creation);
+  json_object *jfile_modification = json_object_new_int64(file_modified);
+  json_object_object_add(jsonobj, "file_last_modified", jfile_modification);
 
   json_object *jchecksum = json_object_new_object();
-  json_object *jc_value = json_object_new_string("sha256");
+  json_object *jc_type = json_object_new_string("sha256");
+  json_object_object_add(jchecksum, "type", jc_type);
+  json_object *jc_value = json_object_new_string(file_hash);
   json_object_object_add(jchecksum, "value", jc_value);
-  json_object *jc_hash = json_object_new_string(file_hash);
-  json_object_object_add(jchecksum, "hash", jc_hash);
 
-  json_object_object_add(jsonobj, "encrypted_checksum", jchecksum);
+  json_object *jarray = json_object_new_array();
+  json_object_array_add(jarray, jchecksum);
+
+  json_object_object_add(jsonobj, "encrypted_checksums", jarray);
+
+
+  const char* json_string = json_object_to_json_string_ext(jsonobj, JSON_C_TO_STRING_NOSLASHESCAPE);
+  char *res = malloc (strlen(json_string)+1);
+  strcpy(res, json_string);  
+
+  json_object_put(jsonobj); // free json object
+  return res;
+}
+
+int send_rabbit_message(amqp_connection_state_t conn, char const *exchange,
+                           char const *routing_key, char const *message) {
 
   D3("Exchange:%s, Routing_key:%s", exchange, routing_key);
 
@@ -153,9 +174,8 @@ int build_and_send_message(amqp_connection_state_t conn, char const *exchange,
   int ret =
       amqp_basic_publish(conn, 1, amqp_cstring_bytes(exchange),
                          amqp_cstring_bytes(routing_key), 0, 0, &props,
-                         amqp_cstring_bytes(json_object_to_json_string_ext(
-                             jsonobj, JSON_C_TO_STRING_NOSLASHESCAPE)));
-  json_object_put(jsonobj); // free json object
+                         amqp_cstring_bytes(message));
+
   return ret;
 }
 
@@ -299,7 +319,7 @@ int send_message(const char *file_operation, const char *user_info,
 
   // Parse url
   int res;
-
+  char *message = NULL;
   char *url = strdup(conn_string);
   amqp_default_connection_info(&ci);
   res = amqp_parse_url(url, &ci);
@@ -308,6 +328,8 @@ int send_message(const char *file_operation, const char *user_info,
        amqp_error_string2(-res));
     abort();
   }
+  //Build message
+  message = build_message(user_info, file_path, file_operation, new_file_path);
 
   int current_attempt = 0;
   int has_failed = 1;
@@ -328,9 +350,11 @@ int send_message(const char *file_operation, const char *user_info,
     }
 
     D3("Send message");
+   
+    D3("message is: %s", message);
+
     int rabbit_status =
-        build_and_send_message(conn, exchange, routing_key, user_info,
-                               file_path, file_operation, new_file_path);
+        send_rabbit_message(conn, exchange, routing_key, message);
     if (rabbit_status < 0) {
       D2("Rabbit send has failed");
       has_failed = 1;
@@ -347,10 +371,12 @@ int send_message(const char *file_operation, const char *user_info,
     }
     current_attempt++;
   }
-
+  if (message) {
+    free(message);
+  }
   free(url);
   D3("Done");
-  return -has_failed;
+  return 0;
 }
 
 int mq_send_upload(const char *filepath) {
@@ -374,10 +400,10 @@ int mq_send_remove(const char *filepath) {
 }
 
 int mq_send_rename(const char *oldpath, const char *newpath) {
-  D2("%s renamed %s into %s", username, oldpath, newpath);
+  D2("%s renamed %s into %s", username, newpath, oldpath);
   D3("sending '%s' to %s", MQ_OP_RENAME, mq_options->connection);
 
-  int result = send_message(MQ_OP_RENAME, username, oldpath, newpath);
+  int result = send_message(MQ_OP_RENAME, username, newpath, oldpath );
 
   D2("return code is %u", result);
   return result;
