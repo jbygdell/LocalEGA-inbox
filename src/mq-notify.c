@@ -1,4 +1,5 @@
 #include <stdarg.h>
+#include <unistd.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/ipc.h>
@@ -22,7 +23,6 @@ extern char* username;
  *             'operation': ( "upload" | "remove" | "rename" ),
  *              'filesize': <num>,
  *               'oldpath': <str>, // Ignored if not "rename"
- *          'file_created': <num>, // a UNIX timestamp
  *    'file_last_modified': <num>, // a UNIX timestamp
  *   'encrypted_checksums': [{ 'type': <str>, 'value': <checksum as HEX> },
  *                           { 'type': <str>, 'value': <checksum as HEX> },
@@ -42,6 +42,7 @@ mq_send_upload(const char* filepath)
 { 
   D2("%s uploaded %s", username, filepath);
   D3("sending '%s' to %s", MQ_OP_UPLOAD, mq_options->connection);
+  sleep(1);
   return 0;
 }
 
@@ -50,6 +51,7 @@ mq_send_remove(const char* filepath)
 { 
   D2("%s removed %s", username, filepath);
   D3("sending '%s' to %s", MQ_OP_REMOVE, mq_options->connection);
+  sleep(1);
   return 0;
 }
 
@@ -58,5 +60,6 @@ mq_send_rename(const char* oldpath, const char* newpath)
 { 
   D2("%s renamed %s into %s", username, oldpath, newpath);
   D3("sending '%s' to %s", MQ_OP_RENAME, mq_options->connection);
+  sleep(1);
   return 0;
 }

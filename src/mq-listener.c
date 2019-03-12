@@ -72,7 +72,6 @@ mq_listener_spawn(const char* user)
 
     D1("Forking for user %s", username);
     mq_listener_loop();
-    D1("Listener terminated");
 
     /* Clean the queue. On success, IPC_RMID returns 0 */
     rc = msgctl(msg_queue_id, IPC_RMID, NULL); 
@@ -140,7 +139,7 @@ mq_listener_loop(void)
        }
      }
 
-     D2("Listener loop exited");
+     D3("Listener loop exited");
 }
 
 
