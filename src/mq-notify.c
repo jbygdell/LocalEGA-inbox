@@ -16,11 +16,10 @@
 #include <assert.h>
 
 // Only linux:
-#include <signal.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <json-c/json.h>
@@ -35,16 +34,15 @@
 #include <sys/time.h>
 #endif
 
-#include "mq-utils.h"
 #include "mq-config.h"
 #include "mq-notify.h"
+#include "mq-utils.h"
 
-
-extern char* username;
+extern char *username;
 
 /*
  *
- * Send the messages to the broker 
+ * Send the messages to the broker
  *
  * They are JSON formatted as
  *
@@ -64,9 +62,9 @@ extern char* username;
  * The checksum algorithm type is 'md5', or 'sha256'.
  * 'sha256' is preferred.
  */
-#define MQ_OP_UPLOAD "up"
-#define MQ_OP_REMOVE "rm"
-#define MQ_OP_RENAME "mv"
+#define MQ_OP_UPLOAD "upload"
+#define MQ_OP_REMOVE "remove"
+#define MQ_OP_RENAME "rename"
 
 void sha256_hash_string(unsigned char hash[SHA256_DIGEST_LENGTH],
                         char outputBuffer[65]) {
@@ -107,24 +105,21 @@ int build_and_send_message(amqp_connection_state_t conn, char const *exchange,
                            char const *routing_key, char const *user_info,
                            char const *file_path, char const *file_operation,
                            char const *new_file_path) {
-  logit("build and send message");
+  D3("build and send message");
   struct stat st;
 
-  // TODO check if file exists if op != remove, if rename check to see which is
-  // the old one
   off_t file_size = 0;
   char file_hash[65] = "";
 
-  if (strcmp(file_operation, "remove") != 0 &&
-      strcmp(file_operation, "rename") != 0) {
-    logit("obtainig data");
+  if (strcmp(file_operation, MQ_OP_REMOVE) != 0 &&
+      strcmp(file_operation, MQ_OP_RENAME) != 0) {
     // obtain filesize
     stat(file_path, &st);
     file_size = st.st_size;
-    logit("size is %u", (int)file_size);
+    D3("Size is %u", (int)file_size);
     // Obtain file_hash
     sha256_file(file_path, file_hash);
-    logit("hash is %s", file_hash);
+    D3("Hash is %s", file_hash);
   }
 
   // Create json message
@@ -148,8 +143,7 @@ int build_and_send_message(amqp_connection_state_t conn, char const *exchange,
 
   json_object_object_add(jsonobj, "encrypted_checksum", jchecksum);
 
-  printf("exchange:%s, routing_key:%s\n", exchange, routing_key);
-  logit("exchange:%s, routing_key:%s\n", exchange, routing_key);
+  D3("Exchange:%s, Routing_key:%s", exchange, routing_key);
 
   // create amqp message
   amqp_basic_properties_t props;
@@ -161,13 +155,12 @@ int build_and_send_message(amqp_connection_state_t conn, char const *exchange,
                          amqp_cstring_bytes(routing_key), 0, 0, &props,
                          amqp_cstring_bytes(json_object_to_json_string_ext(
                              jsonobj, JSON_C_TO_STRING_NOSLASHESCAPE)));
-  json_object_put(jsonobj); // free json object>
+  json_object_put(jsonobj); // free json object
   return ret;
 }
 
 int init_connection(amqp_connection_state_t conn,
-                    struct amqp_connection_info *ci, int heartbeat, int argc,
-                    char const *const *argv) {
+                    struct amqp_connection_info *ci, int heartbeat) {
   // amqp
   amqp_socket_t *socket = NULL;
   // struct
@@ -179,54 +172,49 @@ int init_connection(amqp_connection_state_t conn,
   tv->tv_sec = 30;
   tv->tv_usec = 0;
 
-  if (ci->ssl) { // check if ssl
+  if (ci->ssl) { // ssl
     socket = amqp_ssl_socket_new(conn);
     if (!socket) {
-      fprintf(stderr, "Error: creating SSL/TLS socket");
-      logit("Error: creating SSL/TLS socket");
+      D2("Error: creating SSL/TLS socket");
       return -1;
     }
     amqp_ssl_socket_set_verify_peer(socket, 0);
     amqp_ssl_socket_set_verify_hostname(socket, 0);
-    if (argc > 6) {
-      int nextarg = 6;
-      int ret = amqp_ssl_socket_set_cacert(socket, argv[5]);
+    /* TODO read certificate options. Some of these options expects paths
+    //that are not accessible while in chroot
+    if (mq_options->set_ca_cert) {
+      int ret = amqp_ssl_socket_set_cacert(socket, mq_options->ca_cert);
       if (ret < 0) {
-        fprintf(stderr, "Error: could not set cacert");
-        logit("Error: creating SSL/TLS socket");
+        D2("Error: creating SSL/TLS socket");
         return -1;
       }
-      if (argc > nextarg && !strcmp("verifypeer", argv[nextarg])) {
+      if (mq_options->verify_peer) {
         amqp_ssl_socket_set_verify_peer(socket, 1);
         nextarg++;
       }
-      if (argc > nextarg && !strcmp("verifyhostname", argv[nextarg])) {
+      if (mq_options->verifyhostname) {
         amqp_ssl_socket_set_verify_hostname(socket, 1);
         nextarg++;
       }
-      if (argc > nextarg + 1) {
-        ret = amqp_ssl_socket_set_key(socket, argv[nextarg + 1], argv[nextarg]);
-        if (ret < 0) {
-          fprintf(stderr, "Error: could not set key");
-          logit("Error: creating SSL/TLS socket");
-          return -1;
+      if (mq_options->set_key) {
+        ret = amqp_ssl_socket_set_key(socket, mq_options->client_cert,
+    mq_options->client_key); if (ret < 0) { D2("Error: creating SSL/TLS
+    socket"); return -1;
         }
       }
-    }
+    }*/
   } else { // non ssl
     socket = amqp_tcp_socket_new(conn);
     if (!socket) {
-      fprintf(stderr, "Error: creating TCP socket (out of memory)");
-      logit("Error: creating TCP socket (out of memory)");
+      D2("Error: creating TCP socket (out of memory)");
       return -1;
     }
   }
 
-  logit("Host is %s, port is %u", ci->host, ci->port);
+  D3("Host is %s, port is %u", ci->host, ci->port);
   int ret = amqp_socket_open_noblock(socket, ci->host, ci->port, tv);
   if (ret < 0) {
-    fprintf(stderr, "Error: opening connection");
-    logit("Error: opening connection: %s", amqp_error_string2(ret));
+    D2("Error: opening connection: %s", amqp_error_string2(ret));
     return -1;
   }
 
@@ -234,16 +222,14 @@ int init_connection(amqp_connection_state_t conn,
       amqp_login(conn, ci->vhost, 0, 131072, heartbeat, AMQP_SASL_METHOD_PLAIN,
                  ci->user, ci->password);
   if (amqp_ret.reply_type != AMQP_RESPONSE_NORMAL) {
-    fprintf(stderr, "Error: Logging in");
-    logit("Error: Logging in");
+    D2("Error: Logging in");
     return -1;
   }
 
   amqp_channel_open(conn, 1);
   amqp_ret = amqp_get_rpc_reply(conn);
   if (amqp_ret.reply_type != AMQP_RESPONSE_NORMAL) {
-    fprintf(stderr, "Error: Opening channel");
-    logit("Error: Opening channel");
+    D2("Error: Opening channel");
     return -1;
   }
   return 0;
@@ -254,31 +240,32 @@ int close_connection(amqp_connection_state_t conn,
 
   amqp_rpc_reply_t amqp_ret = amqp_channel_close(conn, 1, AMQP_REPLY_SUCCESS);
   if (amqp_ret.reply_type != AMQP_RESPONSE_NORMAL) {
-    fprintf(stderr, "Error: Closing channel");
+    D2("Error: Closing channel");
     return -1;
   }
 
   amqp_ret = amqp_connection_close(conn, AMQP_REPLY_SUCCESS);
   if (amqp_ret.reply_type != AMQP_RESPONSE_NORMAL) {
-    fprintf(stderr, "Error: Closing connection");
+    D2("Error: Closing connection");
     return -1;
   }
   int ret = amqp_destroy_connection(conn);
   if (ret < 0) {
-    fprintf(stderr, "Error: Ending connection");
+    D2("Error: Ending connection");
     return -1;
   }
   if (ci->ssl) { // check if ssl
     ret = amqp_uninitialize_ssl_library();
     if (ret < 0) {
-      fprintf(stderr, "Error: Uninitializing SSL library");
+      D2("Error: Uninitializing SSL library");
       return -1;
     }
   }
   return 0;
 }
 
-int send_message(int argc, char const *const *argv) {
+int send_message(const char *file_operation, const char *user_info,
+                 const char *file_path, const char *new_file_path) {
   // params
   char const *conn_string;
   char const *exchange;
@@ -286,19 +273,11 @@ int send_message(int argc, char const *const *argv) {
   int connection_attempts;
   int retry_delay;
   int heartbeat;
-  char const *file_operation;
-  char const *user_info;
-  char const *file_path;
-  char const *new_file_path;
+
   // amqp
   amqp_connection_state_t conn = NULL;
   // structs
   struct amqp_connection_info ci;
-
-  if (argc < 5) {
-    fprintf(stderr, "Error: Incorrect number of parameters");
-    return -1;
-  }
 
   // conn params
   conn_string = mq_options->connection;
@@ -308,17 +287,11 @@ int send_message(int argc, char const *const *argv) {
   retry_delay = mq_options->retry_delay;
   heartbeat = mq_options->heartbeat;
 
-  // info params
-  file_operation = argv[1];
-  user_info = argv[2];
-  file_path = argv[3];
-  new_file_path = argv[4];
-
-  logit("conn_string is %s", conn_string);
-  logit("exchange is %s", exchange);
-  logit("routing_key is %s", routing_key);
-  logit("file_path is %s", file_path);
-  logit("connection_attempts is %u", connection_attempts);
+  D3("conn_string is %s", conn_string);
+  D3("exchange is %s", exchange);
+  D3("routing_key is %s", routing_key);
+  D3("file_path is %s", file_path);
+  D3("connection_attempts is %u", connection_attempts);
 
   // Parse url
   int res;
@@ -327,10 +300,8 @@ int send_message(int argc, char const *const *argv) {
   amqp_default_connection_info(&ci);
   res = amqp_parse_url(url, &ci);
   if (res) {
-    fprintf(stderr, "Expected to successfully parse URL, but didn't: %s (%s)\n",
-            url, amqp_error_string2(-res));
-    logit("Expected to successfully parse URL, but didn't: %s (%s)\n", url,
-          amqp_error_string2(-res));
+    D2("Expected to successfully parse URL, but didn't: %s (%s)", url,
+       amqp_error_string2(-res));
     abort();
   }
 
@@ -338,136 +309,72 @@ int send_message(int argc, char const *const *argv) {
   int has_failed = 1;
   while (has_failed && current_attempt < connection_attempts) {
     has_failed = 0;
-    fprintf(stderr, "Current_attempt:%u/%u\n", current_attempt,
-            connection_attempts);
-    logit("Current_attempt:%u/%u\n", current_attempt, connection_attempts);
+    D2("Current_attempt:%u/%u", current_attempt, connection_attempts);
     if (current_attempt > 0) { // wait
-      fprintf(stderr, "Sleeping\n");
+      D3("Sleeping...");
       sleep(retry_delay);
     }
     conn = amqp_new_connection();
-    logit("init conn");
-    int init_result = init_connection(conn, &ci, heartbeat, argc, argv);
+    D3("Init connection");
+    int init_result = init_connection(conn, &ci, heartbeat);
     if (init_result < 0) {
       has_failed = 1;
-      logit("init connection has failed");
+      D2("Init connection has failed");
       goto end;
     }
 
-    logit("send message");
+    D3("Send message");
     int rabbit_status =
         build_and_send_message(conn, exchange, routing_key, user_info,
                                file_path, file_operation, new_file_path);
     if (rabbit_status < 0) {
-      logit("rabbit send has failed");
+      D2("Rabbit send has failed");
       has_failed = 1;
       goto end;
     }
 
     int close_result;
   end:
-    logit("close message");
+    D3("Close message");
     close_result = close_connection(conn, &ci);
     if (close_result < 0) {
       has_failed = 1;
-      logit("close connection has failed");
+      D2("Close connection has failed");
     }
     current_attempt++;
   }
 
   free(url);
-  logit("---Done");
-  printf("Done\n");
-  return 0;
+  D3("Done");
+  return has_failed;
 }
 
-int lega_send_message(int argc, char const *const *argv) {
-  int retval, child;
-  struct sigaction newsa, oldsa;
-
-  /*
-   * This code arranges that the demise of the child does not cause
-   * the application to receive a signal it is not expecting - which
-   * may kill the application or worse.
-   */
-  memset(&newsa, '\0', sizeof(newsa));
-  newsa.sa_handler = SIG_DFL;
-  sigaction(SIGCHLD, &newsa, &oldsa);
-
-  /* fork */
-  child = fork();
-  if (child == 0) {
-    retval = send_message(argc, argv);
-
-    exit(retval);
-  } else if (child > 0) {
-    printf("the parent continues");
-    // We do not wait for the child so we hope that it goes ok
-  } else {
-    printf("fork failed");
-    retval = -1;
-  }
-
-  sigaction(SIGCHLD, &oldsa, NULL); /* restore old signal handler */
-  return retval;
-}
-
-
-int mq_send_upload(const char* filepath) { 
+int mq_send_upload(const char *filepath) {
   D2("%s uploaded %s", username, filepath);
   D3("sending '%s' to %s", MQ_OP_UPLOAD, mq_options->connection);
 
-  const char *args[] = {NULL, NULL, NULL, NULL, NULL};
+  int result = send_message(MQ_OP_UPLOAD, username, filepath, NULL);
 
-  args[0] = "send_message";
-  args[1] = "upload";
-  args[2] = username;
-  args[3] = filepath;
-  args[4] = "";
-
-  int result = send_message(5, (char *const *)args);
-
-  logit("return code is %u", result);
-
-  return 0;
+  D2("return code is %u", result);
+  return result;
 }
 
-
-int mq_send_remove(const char* filepath) { 
+int mq_send_remove(const char *filepath) {
   D2("%s removed %s", username, filepath);
   D3("sending '%s' to %s", MQ_OP_REMOVE, mq_options->connection);
 
-  const char *args[] = {NULL, NULL, NULL, NULL, NULL};
-  args[0] = "send_message";
-  args[1] = "remove";
-  args[2] = username;
-  args[3] = filepath;
-  args[4] = "";
+  int result = send_message(MQ_OP_REMOVE, username, filepath, NULL);
 
-  int result = send_message(5, (char *const *)args);
-
-  logit("return code is %u", result);
-
-  return 0;
+  D2("return code is %u", result);
+  return result;
 }
 
-
-int mq_send_rename(const char* oldpath, const char* newpath) { 
+int mq_send_rename(const char *oldpath, const char *newpath) {
   D2("%s renamed %s into %s", username, oldpath, newpath);
   D3("sending '%s' to %s", MQ_OP_RENAME, mq_options->connection);
 
-  const char *args[] = {NULL, NULL, NULL, NULL, NULL};
+  int result = send_message(MQ_OP_RENAME, username, oldpath, newpath);
 
-  args[0] = "send_message";
-  args[1] = "rename";
-  args[2] = username;
-  args[3] = oldpath;
-  args[4] = newpath;
-
-  int result = send_message(5, (char *const *)args);
-
-  logit("return code is %u", result);
-
-  return 0;
+  D2("return code is %u", result);
+  return result;
 }
-
