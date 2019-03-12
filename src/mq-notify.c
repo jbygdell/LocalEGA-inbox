@@ -24,12 +24,14 @@ extern char* username;
  *               'oldpath': <str>, // Ignored if not "rename"
  *          'file_created': <num>, // a UNIX timestamp
  *    'file_last_modified': <num>, // a UNIX timestamp
- *   'encrypted_checksums': [{ 'hash': "md5|sha256", value: <checksum as HEX> },
- *                           { 'hash': "md5|sha256", value: <checksum as HEX> },
+ *   'encrypted_checksums': [{ 'type': <str>, value: <checksum as HEX> },
+ *                           { 'type': <str>, value: <checksum as HEX> },
  *                           ...
  *                          ]
  * }
  *
+ * The checksum algorithm type is 'md5', or 'sha256'.
+ * 'sha256' is prefered.
  */
 #define MQ_OP_UPLOAD "up"
 #define MQ_OP_REMOVE "rm"
