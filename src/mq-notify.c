@@ -421,7 +421,7 @@ int mq_send_upload(const char* filepath) {
 
   args[0] = "send_message";
   args[1] = "upload";
-  args[2] = user;
+  args[2] = username;
   args[3] = filepath;
   args[4] = "";
 
@@ -460,7 +460,7 @@ int mq_send_rename(const char* oldpath, const char* newpath) {
 
   args[0] = "send_message";
   args[1] = "rename";
-  args[2] = user;
+  args[2] = username;
   args[3] = oldpath;
   args[4] = newpath;
 
