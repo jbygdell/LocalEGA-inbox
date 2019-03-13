@@ -10,7 +10,12 @@ set -e
 [[ -z "${CEGA_ENDPOINT_JSON_PREFIX+x}" ]] && echo 'Environment CEGA_ENDPOINT_JSON_PREFIX must be set' 1>&2 && exit 1
 
 # Broker connection settings
-[[ -z "${CEGA_MQ_CONNECTION}" ]] && echo 'Environment CEGA_MQ_CONNECTION is empty' 1>&2 && exit 1
+[[ -z "${CEGA_MQ_SSL}" ]] && echo 'Environment CEGA_MQ_SSL is empty' 1>&2 && exit 1
+[[ -z "${CEGA_MQ_HOST}" ]] && echo 'Environment CEGA_MQ_HOST is empty' 1>&2 && exit 1
+[[ -z "${CEGA_MQ_PORT}" ]] && echo 'Environment CEGA_MQ_PORT is empty' 1>&2 && exit 1
+[[ -z "${CEGA_MQ_VHOST}" ]] && echo 'Environment CEGA_MQ_VHOST is empty' 1>&2 && exit 1
+[[ -z "${CEGA_MQ_USER}" ]] && echo 'Environment CEGA_MQ_USER is empty' 1>&2 && exit 1
+[[ -z "${CEGA_MQ_PASSWORD}" ]] && echo 'Environment CEGA_MQ_PASSWORD is empty' 1>&2 && exit 1
 
 EGA_GID=$(getent group lega | awk -F: '{ print $3 }')
 
@@ -45,15 +50,15 @@ cat > /etc/ega/mq.conf <<EOF
 ##################
 
 # of the form amqp(s)://user:password@host:port/vhost
-connection = ${CEGA_MQ_CONNECTION}
+# connection = ${CEGA_MQ_CONNECTION}
 
-# # or per values
-# enable_ssl = no
-# host = mq
-# port = 5672
-# vhost = /
-# username = guest
-# password = guest
+# or per values
+enable_ssl = ${CEGA_MQ_SSL}
+host = ${CEGA_MQ_HOST}
+port = ${CEGA_MQ_PORT}
+vhost = ${CEGA_MQ_VHOST}
+username = ${CEGA_MQ_USER}
+password = ${CEGA_MQ_PASSWORD}
 
 
 connection_attempts = 10

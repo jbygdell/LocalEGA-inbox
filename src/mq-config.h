@@ -4,22 +4,31 @@
 #include <stdbool.h>
 #include <sys/types.h> 
 
+#include "mq-notify.h" 
+
 /* Default config file, if not passed at command-line */
 #define MQ_CFGFILE "/etc/ega/mq.conf"
 
 struct mq_options_s {
   char* cfgfile;
   char* buffer;
+  int buflen;
   
-  char* connection;    /* DSN URL */
+  mq_conn conn;        /* the connection pointer */
+
+  bool  ssl;
+  char* host;
+  int   port;
+  char* vhost;
+  char* username;
+  char* password;
+
   char* exchange;      /* Name of the MQ exchange */
   char* routing_key;   /* Routing key to send to */
 
   int attempts;        /* number of connection attempts. (int is enough) */
   int retry_delay;     /* in seconds */
   int heartbeat;       /* in seconds */
-
-  char* ipc_key_prefix; /* For the IPC queues */
 };
 
 typedef struct mq_options_s mq_options_t;

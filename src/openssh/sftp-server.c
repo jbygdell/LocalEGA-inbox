@@ -51,6 +51,7 @@
 #include "sftp.h"
 #include "sftp-common.h"
 
+#include "mq-config.h"
 #include "mq-notify.h"
 
 /* Our verbosity */
@@ -679,11 +680,6 @@ process_init(void)
 		fatal("%s: buffer error: %s", __func__, ssh_err(r));
 	send_msg(msg);
 	sshbuf_free(msg);
-
-	/* Prepare the broker connection */
-	if( (r = mq_init()) != 0 ) {
-	  logit("Unable to initialize a connection to the broker: [error %d] %s", r, strerror(errno));
-	}
 
 }
 
@@ -1493,7 +1489,7 @@ void
 sftp_server_cleanup_exit(int i)
 {
 
-        mq_clean();
+        clean_mq_config(); /* That will call mq_clean(); */
 
 	if (pw != NULL && client_addr != NULL) {
 		handle_log_exit();

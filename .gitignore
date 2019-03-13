@@ -3,6 +3,8 @@
 .DS_Store
 tmp/
 
+src/openssh/ega-sshd
+src/openssh/ssh-keygen
 
 # Prerequisites
 *.d

@@ -1689,15 +1689,19 @@ main(int ac, char **av)
 	/* Load the MQ connection settings */
 	logit("[MQ] Loading configuration %s", mq_config_file_name);
 	load_mq_config(mq_config_file_name);
-
+			
 #if DEBUG
-	  verbose("[MQ] config file: %s", mq_options->cfgfile);
-	  verbose("[MQ]  connection: %s", mq_options->connection);
-	  verbose("[MQ]    exchange: %s", mq_options->exchange);
-	  verbose("[MQ] routing key: %s", mq_options->routing_key);
-	  verbose("[MQ]    attempts: %d", mq_options->attempts);
-	  verbose("[MQ] retry delay: %d", mq_options->retry_delay);
-	  verbose("[MQ]   heartbeat: %d", mq_options->heartbeat);
+	verbose("[MQ] config file: %s", mq_options->cfgfile);
+	verbose("[MQ]        host: %s", mq_options->host);
+	verbose("[MQ]        port: %d", mq_options->port);
+	verbose("[MQ]       vhost: %s", mq_options->vhost);
+	verbose("[MQ]    username: %s", mq_options->username);
+	verbose("[MQ] ssl enabled: %d", mq_options->ssl);
+	verbose("[MQ]    exchange: %s", mq_options->exchange);
+	verbose("[MQ] routing key: %s", mq_options->routing_key);
+	verbose("[MQ]    attempts: %d", mq_options->attempts);
+	verbose("[MQ] retry delay: %d", mq_options->retry_delay);
+	verbose("[MQ]   heartbeat: %d", mq_options->heartbeat);
 #endif
 
 	seed_rng();

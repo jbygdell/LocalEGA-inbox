@@ -47,6 +47,25 @@ RUN curl -OJ https://sqlite.org/2018/sqlite-autoconf-${SQLITE_VERSION}.tar.gz &&
 
 #################################################
 ##
+## Install jsonc lib
+##
+#################################################
+
+ARG JSONC_VERSION=json-c-0.13.1-20180305
+
+WORKDIR /var/src
+RUN yum install -y automake autoconf libtool && \
+    git clone https://github.com/json-c/json-c.git /var/src/json-c && \
+    cd /var/src/json-c && \
+    git checkout ${JSONC_VERSION}  && \
+    sh autogen.sh && \
+    ./configure && \
+    make && \
+    make install
+# No need to change dir back
+
+#################################################
+##
 ## Install OpenSSH (and patch it)
 ##
 #################################################

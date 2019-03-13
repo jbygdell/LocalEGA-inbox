@@ -10,7 +10,7 @@ CFLAGS=-g -O2 -pipe \
        -Wsizeof-pointer-memaccess -Wno-pointer-sign -Wno-unused-result \
        -mfunction-return=thunk -mindirect-branch=thunk -D_FORTIFY_SOURCE=2 \
        -fno-strict-aliasing -ftrapv -fno-builtin-memset -fstack-protector-strong -fPIE
-CPPFLAGS=-I. -I.. \
+CPPFLAGS=-I. -I.. -I../rabbitmq-c \
 	 -D_XOPEN_SOURCE=600 -D_BSD_SOURCE -D_DEFAULT_SOURCE -DHAVE_CONFIG_H \
 	 -DSSHDIR=\"${prefix}/etc\" -D_PATH_SSH_PIDDIR=\"/var/run\" -D_PATH_PRIVSEP_CHROOT_DIR=\"$(PRIVSEP_PATH)\"
 LIBS=-lcrypto -ldl -lutil -lz  -lcrypt -lresolv
@@ -19,8 +19,6 @@ AR=ar
 RANLIB=ranlib
 INSTALL=/usr/bin/install -c
 LDFLAGS=-L. -Lopenbsd-compat/ -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack -fstack-protector-strong -pie
-
-TARGETS=ega-sshd ssh-keygen
 
 XMSS_OBJS=\
 	ssh-xmss.o \
@@ -62,6 +60,8 @@ LIBSSH_OBJS=${LIBOPENSSH_OBJS} \
 	kexdhs.o kexgexs.o kexecdhs.o kexc25519s.o \
 	platform-pledge.o platform-tracing.o platform-misc.o
 
+MQ_OBJS=../mq-config.o ../mq-notify.o
+
 SSHDOBJS=sshd.o auth-rhosts.o auth-passwd.o \
 	audit.o audit-bsm.o audit-linux.o platform.o \
 	sshpty.o sshlogin.o servconf.o serverloop.o \
@@ -73,13 +73,12 @@ SSHDOBJS=sshd.o auth-rhosts.o auth-passwd.o \
 	auth2-gss.o gss-serv.o gss-serv-krb5.o \
 	loginrec.o auth-pam.o auth-shadow.o auth-sia.o md5crypt.o \
 	sftp-server.o sftp-common.o \
-	../mq-config.o ../mq-notify.o \
 	sandbox-null.o sandbox-rlimit.o sandbox-systrace.o sandbox-darwin.o \
 	sandbox-seccomp-filter.o sandbox-capsicum.o sandbox-pledge.o \
-	sandbox-solaris.o uidswap.o
+	sandbox-solaris.o uidswap.o $(MQ_OBJS)
 
 
-all: /usr/local/lib/librabbitmq.so $(TARGETS)
+all: ega-sshd ssh-keygen
 
 $(LIBSSH_OBJS): config.h
 $(SSHDOBJS): config.h
@@ -95,23 +94,28 @@ libssh.a: $(LIBSSH_OBJS)
 	$(AR) rv $@ $(LIBSSH_OBJS)
 	$(RANLIB) $@
 
-ega-sshd: libssh.a	$(LIBCOMPAT) $(SSHDOBJS) /usr/local/lib/librabbitmq.so
-	$(LD) -o $@ $(SSHDOBJS) $(LDFLAGS) -lssh -lopenbsd-compat $(SSHDLIBS) $(LIBS) -L/usr/local/lib -lrabbitmq
+ega-sshd: libssh.a $(MQOBJS) $(LIBCOMPAT) $(SSHDOBJS) /usr/local/lib/librabbitmq.so
+	$(LD) -o $@ $(SSHDOBJS) \
+	      $(LDFLAGS) -lssh -lopenbsd-compat $(SSHDLIBS) $(LIBS) -L/usr/local/lib -lrabbitmq -ljson-c
 
 ssh-keygen: $(LIBCOMPAT) libssh.a ssh-keygen.o
 	$(LD) -o $@ ssh-keygen.o $(LDFLAGS) -lssh -lopenbsd-compat $(LIBS)
 
 clean:
-	rm -f *~ *.o *.a $(TARGETS)
-	rm -f ../mq-*.o
+	rm -f *~ *.o *.a ega-sshd ssh-keygen
+	rm -f $(MQ_OBJS)
 	$(MAKE) -C openbsd-compat clean
 
-install: $(TARGETS)
-	mkdir -p $(bindir)
+install-ega: ega-sshd
 	mkdir -p $(sbindir)
 	mkdir -p -m 0755 $(PRIVSEP_PATH)
+	$(INSTALL) -m 0755 $< $(sbindir)/$<
+
+install-keygen: ssh-keygen
+	mkdir -p $(bindir)
 	$(INSTALL) -m 0755 ssh-keygen $(bindir)/ssh-keygen
-	$(INSTALL) -m 0755 ega-sshd $(sbindir)/ega-sshd
+
+install: install-ega install-keygen
 
 debug1: CFLAGS += -DDEBUG=1
 debug1: install
@@ -121,7 +125,7 @@ debug3: CFLAGS += -DDEBUG=3
 debug3: install
 
 cleanmq:
-	rm -rf ../*.o sftp-server.o sshd.o
+	rm -rf $(MQ_OBJS) sftp-server.o sshd.o
 
 /usr/local/lib/librabbitmq.so:
 	$(MAKE) -C ../rabbitmq-c install
