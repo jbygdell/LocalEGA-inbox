@@ -49,48 +49,4 @@ static inline void close_file(FILE** f){ if(*f){ D3("Closing file"); fclose(*f);
 static inline void free_str(char** p){ D3("Freeing %p: %s", p, *p); free(*p); }
 #define _cleanup_str_ __attribute__((cleanup(free_str)))
 
-/*
- * Concatenate string and allocate them on the stack.
- * That way, no need to free them from the heap
- */
-#define ELEMENTSOF(x) (sizeof(x)/sizeof((x)[0]))
-
-#define strjoina(a, ...)                                                                                   \
-        ({                                                                                                 \
-                const char* _arr_[] = { a, __VA_ARGS__ };                                                  \
-                char *_d_, *_p_; size_t _len_ = 0; unsigned _i_;                                           \
-                for (_i_ = 0; _i_ < ELEMENTSOF(_arr_) && _arr_[_i_]; _i_++) _len_ += strlen(_arr_[_i_]);   \
-                _p_ = _d_ = alloca(_len_ + 1);                                                             \
-                for (_i_ = 0; _i_ < ELEMENTSOF(_arr_) && _arr_[_i_]; _i_++) _p_ = stpcpy(_p_, _arr_[_i_]); \
-                *_p_ = 0;                                                                                  \
-                _d_;                                                                                       \
-        })
-
-/*
- * Moves a string value to a buffer (including a \0 at the end).
- * Adjusts the pointer to pointer right after the \0.
- *
- * Returns -size in case the buffer is <size> too small.
- * Otherwise, returns the <size> of the string.
- */
-static inline int
-copy2buffer(const char* data, char** dest, char **bufptr, size_t *buflen)
-{
-  size_t slen = strlen(data) + 1;
-
-  if(*buflen < slen) {
-    D3("buffer too small [currently: %zd bytes left] to copy \"%s\" [%zd bytes]", *buflen, data, slen);
-    return -slen;
-  }
-
-  strncpy(*bufptr, data, slen-1);
-  (*bufptr)[slen-1] = '\0';
-  
-  if(dest) *dest = *bufptr; /* record location */
-  *bufptr += slen;
-  *buflen -= slen;
-  
-  return slen;
-}
-
 #endif /* !__MQ_UTILS_H_INCLUDED__ */

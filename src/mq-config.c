@@ -24,6 +24,7 @@
 mq_options_t* mq_options = NULL;
 
 static int convert_host_to_ip(char* buffer, size_t buflen);
+static inline int copy2buffer(const char* data, char** dest, char **bufptr, size_t *buflen);
 
 void
 clean_mq_config(void)
@@ -225,4 +226,31 @@ convert_host_to_ip(char* buffer, size_t buflen)
 
   D2("Error converting to ip: %s", mq_options->host);
   return 1;
+}
+
+/*
+ * Moves a string value to a buffer (including a \0 at the end).
+ * Adjusts the pointer to pointer right after the \0.
+ *
+ * Returns -size in case the buffer is <size> too small.
+ * Otherwise, returns the <size> of the string.
+ */
+static inline int
+copy2buffer(const char* data, char** dest, char **bufptr, size_t *buflen)
+{
+  size_t slen = strlen(data) + 1;
+
+  if(*buflen < slen) {
+    D3("buffer too small [currently: %zd bytes left] to copy \"%s\" [%zd bytes]", *buflen, data, slen);
+    return -slen;
+  }
+
+  strncpy(*bufptr, data, slen-1);
+  (*bufptr)[slen-1] = '\0';
+  
+  if(dest) *dest = *bufptr; /* record location */
+  *bufptr += slen;
+  *buflen -= slen;
+  
+  return slen;
 }
