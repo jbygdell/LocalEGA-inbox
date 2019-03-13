@@ -680,7 +680,7 @@ process_init(void)
 	send_msg(msg);
 	sshbuf_free(msg);
 
-	/* Spawn a listener for this connection */
+	/* Prepare the broker connection */
 	if( (r = mq_init()) != 0 ) {
 	  logit("Unable to initialize a connection to the broker: [error %d] %s", r, strerror(errno));
 	}
