@@ -14,11 +14,13 @@ CPPFLAGS=-I. -I.. -I../rabbitmq-c \
 	 -D_XOPEN_SOURCE=600 -D_BSD_SOURCE -D_DEFAULT_SOURCE -DHAVE_CONFIG_H \
 	 -DSSHDIR=\"${prefix}/etc\" -D_PATH_SSH_PIDDIR=\"/var/run\" -D_PATH_PRIVSEP_CHROOT_DIR=\"$(PRIVSEP_PATH)\"
 LIBS=-lcrypto -ldl -lutil -lz  -lcrypt -lresolv
-SSHDLIBS= -lpam
+SSHDLIBS=-lpam
+MQ_LIBS=-L/usr/local/lib -lrabbitmq -ljson-c -luuid
 AR=ar
 RANLIB=ranlib
 INSTALL=/usr/bin/install -c
 LDFLAGS=-L. -Lopenbsd-compat/ -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack -fstack-protector-strong -pie
+
 
 XMSS_OBJS=\
 	ssh-xmss.o \
@@ -96,7 +98,7 @@ libssh.a: $(LIBSSH_OBJS)
 
 ega-sshd: libssh.a $(MQOBJS) $(LIBCOMPAT) $(SSHDOBJS) /usr/local/lib/librabbitmq.so
 	$(LD) -o $@ $(SSHDOBJS) \
-	      $(LDFLAGS) -lssh -lopenbsd-compat $(SSHDLIBS) $(LIBS) -L/usr/local/lib -lrabbitmq -ljson-c
+	      $(LDFLAGS) -lssh -lopenbsd-compat $(SSHDLIBS) $(LIBS) $(MQ_LIBS)
 
 ssh-keygen: $(LIBCOMPAT) libssh.a ssh-keygen.o
 	$(LD) -o $@ ssh-keygen.o $(LDFLAGS) -lssh -lopenbsd-compat $(LIBS)
