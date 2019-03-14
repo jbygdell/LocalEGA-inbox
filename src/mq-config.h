@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <sys/types.h> 
 
-#include "mq-notify.h" 
+#include "amqp.h"
 
 /* Default config file, if not passed at command-line */
 #define MQ_CFGFILE "/etc/ega/mq.conf"
@@ -14,10 +14,18 @@ struct mq_options_s {
   char* buffer;
   int buflen;
   
-  mq_conn conn;        /* the connection pointer */
+  char* dsn;                      /* the connection definition as one string */
+  amqp_connection_state_t conn;   /* the connection pointer */
+  amqp_socket_t *socket;          /* socket prepared outside chroot */
+  int connection_opened;          /* connection open called */
 
-  bool  ssl;
-  char* host;
+  int   ssl;
+  int   verify_hostname;
+  int   verify_peer;              /* For the SSL context */
+  char* cacert;                   /* For TLS verification */
+
+  char* host;                     /* Updated from the above DSN */
+  char* ip;                       /* Converted before chroot */
   int   port;
   char* vhost;
   char* username;
@@ -26,8 +34,6 @@ struct mq_options_s {
   char* exchange;      /* Name of the MQ exchange */
   char* routing_key;   /* Routing key to send to */
 
-  int attempts;        /* number of connection attempts. (int is enough) */
-  int retry_delay;     /* in seconds */
   int heartbeat;       /* in seconds */
 };
 

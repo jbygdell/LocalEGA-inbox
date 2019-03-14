@@ -15,16 +15,18 @@
 #include "mq-notify.h"
 
 /* Default values */
-#define MQ_ATTEMPTS   10
-#define MQ_DELAY      10
-#define MQ_HEARTBEAT  0
-#define MQ_ENABLE_SSL false
+#define MQ_HEARTBEAT       0
+#define MQ_ENABLE_SSL      false
+#define MQ_VERIFY_PEER     0
+#define MQ_VERIFY_HOSTNAME 0
 
 /* global variable for the MQ connection settings */
 mq_options_t* mq_options = NULL;
 
-static int convert_host_to_ip(char* buffer, size_t buflen);
+static int convert_host_to_ip(char** buffer, size_t* buflen);
+static int dsn_parse(char** buffer, size_t* buflen);
 static inline int copy2buffer(const char* data, char** dest, char **bufptr, size_t *buflen);
+static inline void set_yes_no_option(char* key, char* val, char* name, int* loc);
 
 void
 clean_mq_config(void)
@@ -49,9 +51,9 @@ valid_options(void)
 
   D2("Checking the config struct");
   if(mq_options->heartbeat < 0    ) { D3("Invalid heartbeat");           valid = false; }
-  if(mq_options->attempts < 0     ) { D3("Invalid connection attempts"); valid = false; }
-  if(mq_options->retry_delay < 0  ) { D3("Invalid retry_delay");         valid = false; }
   if(mq_options->port < 0         ) { D3("Invalid port");                valid = false; }
+
+  if(!mq_options->dsn             ) { D3("Missing dsn connection");      valid = false; }
 
   if(!mq_options->host            ) { D3("Missing host");                valid = false; }
   if(!mq_options->vhost           ) { D3("Missing vhost");               valid = false; }
@@ -61,7 +63,10 @@ valid_options(void)
   if(!mq_options->exchange        ) { D3("Missing exchange");            valid = false; }
   if(!mq_options->routing_key     ) { D3("Missing routing_key");         valid = false; }
 
-  if(!valid){ D3("Invalid config struct from %s", mq_options->cfgfile); }
+  if(mq_options->verify_peer &&
+     !mq_options->cacert){ D3("Missing cacert, when using verify_peer"); valid = false; }
+
+  if(!valid){ D3("Invalid configuration from %s", mq_options->cfgfile); }
 
   int i;
   D3("BUFFER ------");
@@ -80,8 +85,8 @@ valid_options(void)
 }
 #endif
 
-#define INJECT_OPTION(key,ckey,val,loc) do { if(!strcmp(key, ckey) && copy2buffer(val, &(loc), &buffer, &buflen) < 0 ){ return -1; } } while(0)
-#define COPYVAL(val,dest) do { if( copy2buffer(val, &(dest), &buffer, &buflen) < 0 ){ return -1; } } while(0)
+#define INJECT_OPTION(key,ckey,val,loc) do { if(!strcmp(key, ckey) && copy2buffer(val, loc, &buffer, &buflen) < 0 ){ return -1; } } while(0)
+#define COPYVAL(val,dest,b,blen) do { if( copy2buffer(val, dest, b, blen) < 0 ){ return -1; } } while(0)
 
 static inline int
 readconfig(FILE* fp, const char* cfgfile, char* buffer, size_t buflen)
@@ -92,11 +97,19 @@ readconfig(FILE* fp, const char* cfgfile, char* buffer, size_t buflen)
   char *key,*eq,*val,*end;
 
   /* Default config values */
-  mq_options->attempts = MQ_ATTEMPTS;
-  mq_options->retry_delay = MQ_DELAY;
   mq_options->heartbeat = MQ_HEARTBEAT;
+  mq_options->connection_opened = 0; /* not opened yet */
   mq_options->ssl = MQ_ENABLE_SSL;
-  COPYVAL(cfgfile, mq_options->cfgfile);
+  mq_options->verify_peer = MQ_VERIFY_PEER;
+  mq_options->verify_hostname = MQ_VERIFY_HOSTNAME;
+  mq_options->dsn = NULL;
+  mq_options->cacert = NULL;
+  mq_options->host = NULL;
+  mq_options->vhost = NULL;
+  mq_options->username = NULL;
+  mq_options->password = NULL;
+  mq_options->ip = NULL;
+  COPYVAL(cfgfile, &(mq_options->cfgfile), &buffer, &buflen);
 
   /* Parse line by line */
   while (getline(&line, &len, fp) > 0) {
@@ -124,33 +137,39 @@ readconfig(FILE* fp, const char* cfgfile, char* buffer, size_t buflen)
 	  
     } else val = NULL; /* could not find the '=' sign */
 
-    INJECT_OPTION(key, "exchange"      , val, mq_options->exchange    );
-    INJECT_OPTION(key, "routing_key"   , val, mq_options->routing_key );
-    INJECT_OPTION(key, "host"          , val, mq_options->host        );
-    INJECT_OPTION(key, "vhost"         , val, mq_options->vhost       );
-    INJECT_OPTION(key, "username"      , val, mq_options->username    );
-    INJECT_OPTION(key, "password"      , val, mq_options->password    );
+    INJECT_OPTION(key, "exchange"      , val, &(mq_options->exchange)    );
+    INJECT_OPTION(key, "routing_key"   , val, &(mq_options->routing_key) );
+    INJECT_OPTION(key, "connection"    , val, &(mq_options->dsn)         );
+    INJECT_OPTION(key, "cacert"        , val, &(mq_options->cacert)      );
 
-    /* strtool ok even when val contains a comment #... */
-    if(!strcmp(key, "connection_attempts" )) { mq_options->attempts    = strtol(val, NULL, 10); }
-    if(!strcmp(key, "retry_delay"         )) { mq_options->retry_delay = strtol(val, NULL, 10); }
+    /* strtol ok even when val contains a comment #... */
     if(!strcmp(key, "heartbeat"           )) { mq_options->heartbeat   = strtol(val, NULL, 10); }
     if(!strcmp(key, "port"                )) { mq_options->port        = strtol(val, NULL, 10); }
 
-    if(!strcmp(key, "enable_ssl")) {
-      if(!strcasecmp(val, "yes") || !strcasecmp(val, "true") || !strcmp(val, "1") || !strcasecmp(val, "on")){
-	mq_options->ssl = true;
-      } else if(!strcasecmp(val, "no") || !strcasecmp(val, "false") || !strcmp(val, "0") || !strcasecmp(val, "off")){
-	mq_options->ssl = false;
-      } else {
-	D2("Could not parse the enable_ssl option: Using %s instead.", ((mq_options->ssl)?"yes":"no"));
-      }
-    }	
-
+    /* Yes/No options */
+    set_yes_no_option(key, val, "enable_ssl", &(mq_options->ssl));
+    set_yes_no_option(key, val, "verify_peer", &(mq_options->verify_peer));
+    set_yes_no_option(key, val, "verify_hostname", &(mq_options->verify_hostname));
   }
 
-  D3("Convert MQ host to ip");
-  return convert_host_to_ip(buffer, buflen);
+  D3("Initializing MQ connection/socket early");
+  
+  int rc = 0;
+  if( (rc = dsn_parse(&buffer, &buflen)) != 0){
+    D3("Error dsn parsing: %d", rc);
+    return rc;
+  }
+  if( (rc = convert_host_to_ip(&buffer, &buflen)) != 0){
+    D3("Error convert host to ip: %d", rc);
+    return rc;
+  }
+
+  if( (rc = mq_init()) != 0){
+    D3("Error mq_init: %d", rc);
+    return rc;
+  }
+
+  return rc;
 }
 
 bool
@@ -173,22 +192,28 @@ load_mq_config(char* cfgfile)
   if(!mq_options){ D3("Could not allocate options data structure"); return false; };
   mq_options->buffer = NULL;
   mq_options->conn = NULL;
+  mq_options->socket = NULL;
 
 REALLOC:
   D3("Allocating buffer of size %zd", size);
   if(mq_options->buffer)free(mq_options->buffer);
   mq_options->buflen = sizeof(char) * size;
   mq_options->buffer = malloc(mq_options->buflen);
-  /* memset(mq_options->buffer, '\0', size); */
-  *(mq_options->buffer) = '\0';
+  memset(mq_options->buffer, '\0', size);
+  /* *(mq_options->buffer) = '\0'; */
   if(!mq_options->buffer){ D3("Could not allocate buffer of size %zd", size); return false; };
-
+  
   if( readconfig(fp, cfgfile, mq_options->buffer, size) < 0 ){
-    size = size << 1; // double it
+
+    /* Rewind first */
+    if(fseek(fp, 0, SEEK_SET)){ D3("Could not rewind config file to start"); return false; }
+
+    /* Double it */
+    size = size << 1;
     goto REALLOC;
   }
 
-  D2("Conf loaded [@ %p]", mq_options);
+  D3("Conf loaded [@ %p]", mq_options);
 
 #ifdef DEBUG
   return valid_options();
@@ -197,30 +222,25 @@ REALLOC:
 #endif
 }
 
+/* Must be called after dsn_parse() */
 static int
-convert_host_to_ip(char* buffer, size_t buflen)
+convert_host_to_ip(char** buffer, size_t* buflen)
 {
+  D3("Convert hostname to IP");
   struct hostent *he;
   struct in_addr **addr_list;
   int i;
-  
-  char* hostname = mq_options->host;
-  D3("Hostname so far: %s", hostname);
 
-  if ( !(he = gethostbyname(hostname)) )
-    {
-      // get the host info
-      D1("gethostbyname error");
-      return 1;
-    }
-  
+  /* get the host info */
+  if ( !(he = gethostbyname(mq_options->host)) ) { D1("gethostbyname error"); return 1; }
+
   addr_list = (struct in_addr **) he->h_addr_list;
   
+  /* The first entry will be good */
   for(i = 0; addr_list[i] != NULL; i++) 
     {
-      //Return the first one;
-      COPYVAL(inet_ntoa(*addr_list[i]), mq_options->host);
-      D2("%s converted to %s", hostname, mq_options->host);
+      COPYVAL(inet_ntoa(*addr_list[i]), &(mq_options->ip), buffer, buflen);
+      D2("%s converted to %s", mq_options->host, mq_options->ip);
       return 0;
     }
 
@@ -253,4 +273,46 @@ copy2buffer(const char* data, char** dest, char **bufptr, size_t *buflen)
   *buflen -= slen;
   
   return slen;
+}
+
+static inline void
+set_yes_no_option(char* key, char* val, char* name, int* loc)
+{
+  if(!strcmp(key, name)) {
+    if(!strcasecmp(val, "yes") || !strcasecmp(val, "true") || !strcmp(val, "1") || !strcasecmp(val, "on")){
+      *loc = 1;
+    } else if(!strcasecmp(val, "no") || !strcasecmp(val, "false") || !strcmp(val, "0") || !strcasecmp(val, "off")){
+      *loc = 0;
+    } else {
+      D2("Could not parse the %s option: Using %s instead.", name, ((*loc)?"yes":"no"));
+    }
+  }
+}
+
+static int
+dsn_parse(char** buffer, size_t* buflen)
+{
+  D3("Parsing DSN");
+  if(!mq_options->dsn) return 2;
+
+  struct amqp_connection_info ci;
+  char *url = strdup(mq_options->dsn);
+  amqp_default_connection_info(&ci);
+  int rc;
+  if ( (rc = amqp_parse_url(url, &ci)) ) {
+    D1("Unable to parse connection URL: %s [Error %s]", url, amqp_error_string2(rc));
+    return 1;
+  }
+
+  COPYVAL(ci.host    , &(mq_options->host)    , buffer, buflen);
+  COPYVAL(ci.vhost   , &(mq_options->vhost)   , buffer, buflen);
+  COPYVAL(ci.user    , &(mq_options->username), buffer, buflen);
+  COPYVAL(ci.password, &(mq_options->password), buffer, buflen);
+
+  mq_options->port = ci.port;
+  mq_options->ssl = ci.ssl;
+
+  D1("Host: %s", mq_options->host);
+
+  return 0;
 }

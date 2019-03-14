@@ -22,17 +22,17 @@
 
 #if DEBUG > 0
 #undef D1
-#define D1(fmt, ...) logit("[MQ] " fmt, ##__VA_ARGS__)
+#define D1(fmt, ...) logit("[MQ] %-16s(%3d) %-20s | " fmt, __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__)
 #endif
 
 #if DEBUG > 1
 #undef D2
-#define D2(fmt, ...) logit("[MQ] " fmt, ##__VA_ARGS__)
+#define D2(fmt, ...) logit("[MQ] %-16s(%3d) %-20s | " fmt, __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__)
 #endif
 
 #if DEBUG > 2
 #undef D3
-#define D3(fmt, ...) logit("[MQ] " fmt, ##__VA_ARGS__)
+#define D3(fmt, ...) logit("[MQ] %-16s(%3d) %-20s | " fmt, __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__)
 #endif
 
 #endif /* !DEBUG */

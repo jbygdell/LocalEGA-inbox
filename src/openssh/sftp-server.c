@@ -52,6 +52,7 @@
 #include "sftp-common.h"
 
 #include "mq-config.h"
+#include "mq-checksum.h"
 #include "mq-notify.h"
 
 /* Our verbosity */
@@ -281,6 +282,7 @@ struct Handle {
 	char *name;
 	u_int64_t bytes_read, bytes_write;
 	int next_unused;
+        checksum_t md;
 };
 
 enum {
@@ -322,6 +324,7 @@ handle_new(int use, const char *name, int fd, int flags, DIR *dirp)
 	handles[i].flags = flags;
 	handles[i].name = xstrdup(name);
 	handles[i].bytes_read = handles[i].bytes_write = 0;
+	/* handles[i].md = malloc(sizeof(checksum_t)); */
 
 	return i;
 }
@@ -404,6 +407,13 @@ handle_update_write(int handle, ssize_t bytes)
 		handles[handle].bytes_write += bytes;
 }
 
+static void
+handle_update_checksum(int handle, u_char *data, int len)
+{
+        if (handle_is_ok(handle, HANDLE_FILE) && len > 0)
+	        checksum_add(&(handles[handle].md), data, len);
+}
+
 static u_int64_t
 handle_bytes_read(int handle)
 {
@@ -427,12 +437,18 @@ handle_close(int handle)
 
 	if (handle_is_ok(handle, HANDLE_FILE)) {
 	        Handle h = handles[handle];
+		struct stat st;
+		fstat(h.fd, &st);
 		ret = close(h.fd);
 		if (!ret                                      /* OK */
 		    && (h.flags & (O_CREAT|O_TRUNC|O_APPEND)) /* Create or Truncate or Append: (re)upload */
 		    && !(h.flags & O_RDONLY)                  /* not Read-Only */
 		    )
-		  mq_send_upload(pw->pw_name, h.name);
+		  {
+		    unsigned char digest[MQ_CHECKSUM_SIZE];
+		    checksum_final(&h.md, digest);
+		    mq_send_upload(pw->pw_name, h.name, digest, st.st_size, st.st_mtime);
+		  }
 	        free(h.name);
                 handle_unused(handle);
 	} else if (handle_is_ok(handle, HANDLE_DIR)) {
@@ -715,6 +731,7 @@ process_open(u_int32_t id)
 			if (handle < 0) {
 				close(fd);
 			} else {
+			        checksum_init(&(handles[handle].md));
 				send_handle(id, handle);
 				status = SSH2_FX_OK;
 			}
@@ -814,6 +831,7 @@ process_write(u_int32_t id)
 			} else if ((size_t)ret == len) {
 				status = SSH2_FX_OK;
 				handle_update_write(handle, ret);
+				handle_update_checksum(handle, data, ret);
 			} else {
 				debug2("nothing at all written");
 				status = SSH2_FX_FAILURE;

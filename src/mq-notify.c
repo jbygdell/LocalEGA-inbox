@@ -18,9 +18,16 @@
 #include "mq-utils.h"
 #include "mq-config.h"
 #include "mq-notify.h"
+#include "mq-checksum.h"
 
-static char* build_message(int operation, const char* username, const char* filepath, const char* oldpath);
-static int send_message(const char* message);
+static int do_send_message(const char* message);
+static char* build_message(int operation,
+	      const char* username,
+	      const char* filepath,
+	      const unsigned char *digest,
+	      const off_t filesize,
+	      const time_t modified,
+	      const char* oldpath);
 
 /* ================================================
  *
@@ -28,48 +35,15 @@ static int send_message(const char* message);
  *
  * ================================================ */
 
+static int mq_init_amqp(void);
+static int mq_init_amqps(void);
+
 int
 mq_init(void)
 {
-  D2("Initializing connection to message broker");
-
-  amqp_socket_t *socket = NULL;
-  amqp_rpc_reply_t amqp_ret;
-
-  mq_options->conn = amqp_new_connection();
-
-  socket = amqp_tcp_socket_new(mq_options->conn);
-  if (!socket) { D3("Error creating TCP socket"); return 1; }
-
-  if (amqp_socket_open(socket, mq_options->host, mq_options->port)) {
-    D1("Error opening TCP socket");
-    return 2;
-  }
-
-  amqp_ret =
-    amqp_login(mq_options->conn,
-	       mq_options->vhost,
-	       0, /* no limit for channel number */
-	       AMQP_DEFAULT_FRAME_SIZE,
-	       mq_options->heartbeat,
-	       AMQP_SASL_METHOD_PLAIN,
-	       mq_options->username,
-	       mq_options->password);
-
-  if (amqp_ret.reply_type != AMQP_RESPONSE_NORMAL) {
-    D2("Error: Logging in");
-    return 3;
-  }
-
-  amqp_channel_open(mq_options->conn, 1);
-  amqp_ret = amqp_get_rpc_reply(mq_options->conn);
-  if (amqp_ret.reply_type != AMQP_RESPONSE_NORMAL) {
-    D2("Error opening channel");
-    return 4;
-  }
-
-  D3("Connection is at [%p]", mq_options->conn);
-  return 0;
+  if(mq_options->ssl)
+    return mq_init_amqps();
+  return mq_init_amqp();
 }
 
 int
@@ -104,7 +78,78 @@ mq_clean(void)
     return 4;
   }
 
+  mq_options->connection_opened = 0;
   mq_options->conn = NULL;
+  return 0;
+}
+
+static int
+mq_init_amqp(void)
+{
+  D2("Initializing AMQP socket");
+  mq_options->conn = amqp_new_connection();
+  mq_options->socket = amqp_tcp_socket_new(mq_options->conn);
+  if (!mq_options->socket) { D3("Error creating TCP socket"); return 1; }
+  return 0;
+}
+
+static int
+mq_init_amqps(void)
+{
+  D2("Initializing AMQPS socket");
+  mq_options->conn = amqp_new_connection();
+  mq_options->socket = amqp_ssl_socket_new(mq_options->conn);
+  if (!mq_options->socket) { D3("Error creating TCP/SSL socket"); return 1; }
+  if(mq_options->verify_peer && mq_options->cacert)
+    amqp_ssl_socket_set_cacert(mq_options->socket, mq_options->cacert);
+  amqp_ssl_socket_set_verify_peer(mq_options->socket, mq_options->verify_peer);
+  amqp_ssl_socket_set_verify_hostname(mq_options->socket, mq_options->verify_hostname);
+  return 0;
+}
+
+static int
+mq_open_connection(void)
+{
+  D2("Connecting to message broker");
+  int rc;
+
+  if(!mq_options->socket || !mq_options->ip)
+    {
+      D1("The AMQP Socket should already be created, or improper configuration");
+      return 1;
+    }
+
+  /* We might be in a chroot env, so using IP and not hostname */
+  if ( (rc = amqp_socket_open(mq_options->socket, mq_options->ip, mq_options->port)) ) {
+    D1("Error opening TCP socket: %s", amqp_error_string2(rc));
+    return 2;
+  }
+
+  amqp_rpc_reply_t amqp_ret;
+  amqp_ret =
+    amqp_login(mq_options->conn,
+	       mq_options->vhost,
+	       0, /* no limit for channel number */
+	       AMQP_DEFAULT_FRAME_SIZE,
+	       mq_options->heartbeat,
+	       AMQP_SASL_METHOD_PLAIN,
+	       mq_options->username,
+	       mq_options->password);
+
+  if (amqp_ret.reply_type != AMQP_RESPONSE_NORMAL) {
+    D2("Error: Logging in");
+    return 3;
+  }
+
+  amqp_channel_open(mq_options->conn, 1);
+  amqp_ret = amqp_get_rpc_reply(mq_options->conn);
+  if (amqp_ret.reply_type != AMQP_RESPONSE_NORMAL) {
+    D2("Error opening channel");
+    return 4;
+  }
+
+  /* Success: Mark it as opened */
+  mq_options->connection_opened = 1;
   return 0;
 }
 
@@ -118,45 +163,84 @@ mq_clean(void)
 #define MQ_OP_RENAME 3
 
 int
-mq_send_upload(const char* username, const char* filepath)
+mq_send_upload(const char* username, const char* filepath, const char* hexdigest, const off_t filesize, const time_t modified)
 { 
   D2("%s uploaded %s", username, filepath);
+  _cleanup_str_ char* msg = NULL;
 
-  _cleanup_str_ char* msg = build_message(MQ_OP_UPLOAD, username, filepath, NULL);
-  
+  if(!mq_options->connection_opened /* Not yet logged in */
+     && mq_open_connection() != 0)  /* Error logging in */
+    return 1;
+
+  msg = build_message(MQ_OP_UPLOAD, username, filepath, hexdigest, filesize, modified, NULL);
   D3("sending '%s' to %s", msg, mq_options->host);
 
-  return send_message(msg);
+  if(do_send_message(msg) == AMQP_STATUS_OK){
+    D2("Message sent to amqp%s://%s:%d/%s", ((mq_options->ssl)?"s":""),
+                                            mq_options->host,
+                                            mq_options->port,
+	                                    mq_options->vhost);
+    return 0;
+  }
+  D2("Unable to send message");
+  return 2;
 }
 
 int
 mq_send_remove(const char* username, const char* filepath)
 { 
   D2("%s removed %s", username, filepath);
+  _cleanup_str_ char* msg = NULL;
 
-  _cleanup_str_ char* msg = build_message(MQ_OP_REMOVE, username, filepath, NULL);
+  if(!mq_options->connection_opened /* Not yet logged in */
+     && mq_open_connection() != 0)  /* Error logging in */
+    return 1;
 
+  msg = build_message(MQ_OP_REMOVE, username, filepath, NULL, 0, 0, NULL);
   D3("sending '%s' to %s", msg, mq_options->host);
 
-  return send_message(msg);
+  if(do_send_message(msg) == AMQP_STATUS_OK){
+    D2("Message sent to amqp%s://%s:%d/%s", ((mq_options->ssl)?"s":""),
+                                            mq_options->host,
+                                            mq_options->port,
+	                                    mq_options->vhost);
+    return 0;
+  }
+  D2("Unable to send message");
+  return 2;
 }
 
 int
 mq_send_rename(const char* username, const char* oldpath, const char* newpath)
 { 
   D2("%s renamed %s into %s", username, oldpath, newpath);
+  _cleanup_str_ char* msg = NULL;
 
-  _cleanup_str_ char* msg = build_message(MQ_OP_RENAME, username, newpath, oldpath);
-
+  if(!mq_options->connection_opened /* Not yet logged in */
+     && mq_open_connection() != 0)  /* Error logging in */
+    return 1;
+  
+  msg = build_message(MQ_OP_RENAME, username, newpath, NULL, 0, 0, oldpath);
   D3("sending '%s' to %s", msg, mq_options->host);
 
-  return send_message(msg);
+  if(do_send_message(msg) == AMQP_STATUS_OK){
+    D2("Message sent to amqp%s://%s:%d/%s", ((mq_options->ssl)?"s":""),
+                                            mq_options->host,
+                                            mq_options->port,
+	                                    mq_options->vhost);
+    return 0;
+  }
+  D2("Unable to send message");
+  return 2;
 }
 
 static char*
 build_message(int operation,
 	      const char* username,
 	      const char* filepath,
+	      const unsigned char *digest,
+	      const off_t filesize,
+	      const time_t modified,
 	      const char* oldpath)
 {
   char* res = NULL;
@@ -176,6 +260,30 @@ build_message(int operation,
     json_object_object_add(obj,
 			   "operation",
 			   json_object_new_string("upload"));
+    /* Checksum */
+    int i = 0;
+    unsigned char hexdigest[MQ_CHECKSUM_SIZE * 2 + 1];
+    /* memset(hexdigest, '\0', MQ_CHECKSUM_SIZE * 2 + 1); */
+    for (i = 0; i < MQ_CHECKSUM_SIZE; i++) {
+      sprintf(hexdigest + (i * 2), "%02x", digest[i]);
+    }
+    hexdigest[MQ_CHECKSUM_SIZE * 2] = '\0';
+    json_object *jchecksum = json_object_new_object();
+    json_object_object_add(jchecksum, "type", json_object_new_string(MQ_CHECKSUM_TYPE));
+    json_object_object_add(jchecksum, "value", json_object_new_string(hexdigest));
+    json_object *jarray = json_object_new_array();
+    json_object_array_add(jarray, jchecksum);
+    json_object_object_add(obj,
+			   "encrypted_checksums",
+			   jarray);
+    /* Filesize */
+    json_object_object_add(obj,
+			   "filesize",
+			   json_object_new_int64(filesize));
+    /* Timestamp last modified */
+    json_object_object_add(obj,
+			   "file_last_modified",
+			   json_object_new_int64(modified));
     break;
   case MQ_OP_REMOVE:
     json_object_object_add(obj,
@@ -226,41 +334,4 @@ do_send_message(const char* message)
 			    amqp_cstring_bytes(mq_options->routing_key),
 			    0, 0, &props,
 			    amqp_cstring_bytes(message)); /* body */
-}
-
-static int
-send_message(const char* message){
-
-  int attempt = 0;
-  int rc = 1;
-
-  while(attempt++ < mq_options->attempts){
-    D3("[%2d/%d] Sending message", attempt, mq_options->attempts);
-
-    if(!mq_options->conn && (rc = mq_init()) != 0) /* Error initializing */
-      goto final;
-
-    if(do_send_message(message) == AMQP_STATUS_OK){
-      D2("Message sent to amqp%s://%s:%d/%s", ((mq_options->ssl)?"s":""),
-	                                      mq_options->host,
-	                                      mq_options->port,
-	                                      mq_options->vhost);
-      rc = 0;
-      goto final;
-    }
-
-    /* Depending on exit status, clean the connection and retry immediately
-     * otherwise sleep for mq_options->retry_delay seconds
-     */
-    /* if( do_clean_and_retry ){ */
-    /*   if( (rc = mq_clean()) != 0 ) /\* Error cleaning *\/ */
-    /* 	goto final; */
-    /* } else { */
-    /*   sleep(mq_options->retry_delay); */
-    /* } */
-  }
-  D2("Unable to send Message after %d attempts", mq_options->attempts);
-
-final:
-  return rc;
 }

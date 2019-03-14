@@ -1689,20 +1689,18 @@ main(int ac, char **av)
 	/* Load the MQ connection settings */
 	logit("[MQ] Loading configuration %s", mq_config_file_name);
 	load_mq_config(mq_config_file_name);
-			
-#if DEBUG
-	verbose("[MQ] config file: %s", mq_options->cfgfile);
-	verbose("[MQ]        host: %s", mq_options->host);
-	verbose("[MQ]        port: %d", mq_options->port);
-	verbose("[MQ]       vhost: %s", mq_options->vhost);
-	verbose("[MQ]    username: %s", mq_options->username);
-	verbose("[MQ] ssl enabled: %d", mq_options->ssl);
-	verbose("[MQ]    exchange: %s", mq_options->exchange);
-	verbose("[MQ] routing key: %s", mq_options->routing_key);
-	verbose("[MQ]    attempts: %d", mq_options->attempts);
-	verbose("[MQ] retry delay: %d", mq_options->retry_delay);
-	verbose("[MQ]   heartbeat: %d", mq_options->heartbeat);
-#endif
+	verbose("[MQ]     config file: %s", mq_options->cfgfile);
+	verbose("[MQ]            host: %s [IP: %s]", mq_options->host, mq_options->ip);
+	verbose("[MQ]            port: %d", mq_options->port);
+	verbose("[MQ]           vhost: %s", mq_options->vhost);
+	verbose("[MQ]        username: %s", mq_options->username);
+	verbose("[MQ]        exchange: %s", mq_options->exchange);
+	verbose("[MQ]     routing key: %s", mq_options->routing_key);
+	verbose("[MQ]       heartbeat: %d", mq_options->heartbeat);
+	verbose("[MQ]     ssl enabled: %s", (mq_options->ssl)?"yes":"no");
+	verbose("[MQ]     verify peer: %s", (mq_options->verify_peer)?"yes":"no");
+	verbose("[MQ]          cacert: %s", mq_options->cacert);
+	verbose("[MQ] verify hostname: %s", (mq_options->verify_hostname)?"yes":"no");
 
 	seed_rng();
 

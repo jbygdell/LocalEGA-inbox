@@ -62,7 +62,7 @@ LIBSSH_OBJS=${LIBOPENSSH_OBJS} \
 	kexdhs.o kexgexs.o kexecdhs.o kexc25519s.o \
 	platform-pledge.o platform-tracing.o platform-misc.o
 
-MQ_OBJS=../mq-config.o ../mq-notify.o
+MQ_OBJS=../mq-config.o ../mq-notify.o ../mq-checksum.o
 
 SSHDOBJS=sshd.o auth-rhosts.o auth-passwd.o \
 	audit.o audit-bsm.o audit-linux.o platform.o \
