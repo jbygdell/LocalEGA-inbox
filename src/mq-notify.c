@@ -3,13 +3,17 @@
 #include <string.h>
 #include <sys/types.h>
 
+/* For JSON */
+#include <json-c/json.h>
+
+/* For uuid in the MQ message */
+#include <uuid/uuid.h>
+#define UUID_STR_LEN	37
+
 /* For RabbitMQ */
 #include "amqp.h"
 #include "amqp_ssl_socket.h"
 #include "amqp_tcp_socket.h"
-
-/* For JSON */
-#include <json-c/json.h>
 
 #include "mq-utils.h"
 #include "mq-config.h"
@@ -204,9 +208,17 @@ static int
 do_send_message(const char* message)
 {
   amqp_basic_properties_t props;
-  props._flags = AMQP_BASIC_CONTENT_TYPE_FLAG | AMQP_BASIC_DELIVERY_MODE_FLAG;
+  props._flags = AMQP_BASIC_CONTENT_TYPE_FLAG | AMQP_BASIC_DELIVERY_MODE_FLAG | AMQP_BASIC_CORRELATION_ID_FLAG;
   props.content_type = amqp_cstring_bytes("application/json");
   props.delivery_mode = 2; /* persistent delivery mode */
+
+  /* Generate Correlation id */
+  char correlation_id[UUID_STR_LEN];
+  uuid_t uu;
+  uuid_generate(uu);
+  uuid_unparse(uu, correlation_id);
+  D3("Correlation ID: %s", correlation_id);
+  props.correlation_id = amqp_cstring_bytes(correlation_id);
 
   return amqp_basic_publish(mq_options->conn,
 			    1, /* channel */
