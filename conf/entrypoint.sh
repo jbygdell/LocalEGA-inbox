@@ -10,11 +10,7 @@ set -e
 [[ -z "${CEGA_ENDPOINT_JSON_PREFIX+x}" ]] && echo 'Environment CEGA_ENDPOINT_JSON_PREFIX must be set' 1>&2 && exit 1
 
 # Broker connection settings
-[[ -z "${MQ_HOST}" ]] && echo 'Environment MQ_HOST is empty' 1>&2 && exit 1
-[[ -z "${MQ_PORT}" ]] && echo 'Environment MQ_PORT is empty' 1>&2 && exit 1
-[[ -z "${MQ_VHOST}" ]] && echo 'Environment MQ_VHOST is empty' 1>&2 && exit 1
-[[ -z "${MQ_USER}" ]] && echo 'Environment MQ_USER is empty' 1>&2 && exit 1
-[[ -z "${MQ_PASSWORD}" ]] && echo 'Environment MQ_PASSWORD is empty' 1>&2 && exit 1
+[[ -z "${MQ_CONNECTION}" ]] && echo 'Environment MQ_CONNECTION is empty' 1>&2 && exit 1
 
 EGA_GID=$(getent group lega | awk -F: '{ print $3 }')
 
@@ -49,15 +45,15 @@ cat > /etc/ega/mq.conf <<EOF
 ##################
 
 # of the form amqp(s)://user:password@host:port/vhost
-# connection = ${MQ_CONNECTION}
+connection = ${MQ_CONNECTION}
 
 # or per values
-enable_ssl = ${MQ_SSL:-no}
-host = ${MQ_HOST}
-port = ${MQ_PORT:-5672}
-vhost = ${MQ_VHOST}
-username = ${MQ_USER}
-password = ${MQ_PASSWORD}
+#enable_ssl = ${MQ_SSL:-no}
+#host = ${MQ_HOST}
+#port = ${MQ_PORT:-5672}
+#vhost = ${MQ_VHOST}
+#username = ${MQ_USER}
+#password = ${MQ_PASSWORD}
 
 
 connection_attempts = 10
@@ -67,8 +63,8 @@ retry_delay = 10
 heartbeat = 0
 
 # Where to send the notifications
-exchange = ${MQ_EXCHANGE:-lega}
-routing_key = ${MQ_ROUTING_KEY:-inbox}
+exchange = ${MQ_EXCHANGE:-cega}
+routing_key = ${MQ_ROUTING_KEY:-files.inbox}
 EOF
 
 # Changing permissions
@@ -80,4 +76,5 @@ chmod g+s /ega/inbox # setgid bit
 echo 'Welcome to Local EGA Demo instance' > /etc/ega/banner
 
 echo "Starting the SFTP server"
+# Use -o LogLevel=VERBOSE to see the MQ connection parameters
 exec /opt/openssh/sbin/ega-sshd -D -e -f /etc/ega/sshd_config -Z /etc/ega/mq.conf
