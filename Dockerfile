@@ -21,9 +21,9 @@ RUN yum -y install https://centos7.iuscommunity.org/ius-release.rpm && \
     yum -y install epel-release && \
     yum -y update && \
     yum -y install git gcc make bzip2 \
-                   zlib-devel bzip2-devel unzip \
-		   openssl openssl-devel \
-		   pam-devel libcurl-devel nss-tools readline-devel
+                   zlib-devel bzip2-devel unzip nss-tools \
+		   pam libcurl openssl libuuid readline \
+		   pam-devel libcurl-devel openssl-devel libuuid-devel readline-devel
 
 # Adding the DEV packages?
 # RUN yum install -y nc nmap tcpdump lsof strace bash-completion bash-completion-extras
