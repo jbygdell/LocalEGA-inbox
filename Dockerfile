@@ -4,7 +4,8 @@ LABEL maintainer "EGA System Developers"
 EXPOSE 9000
 VOLUME /ega/inbox
 
-RUN mkdir -p /var/src
+RUN mkdir -p /var/src && \
+    mkdir -p /etc/ega
 
 # Before the EGA PAM lib is loaded
 ARG LEGA_GID=1000
@@ -93,12 +94,7 @@ COPY conf/sshd_config /etc/ega/sshd_config
 WORKDIR /var/src/ega/openssh
 RUN make install
 
-RUN mkdir -p /etc/ega && \
-    rm -f /etc/{ega,ssh}/ssh_host_{rsa,dsa,ed25519}_key && \
-    ${OPENSSH_DIR}/bin/ssh-keygen -t rsa     -N '' -f /etc/ega/ssh_host_rsa_key && \
-    ${OPENSSH_DIR}/bin/ssh-keygen -t dsa     -N '' -f /etc/ega/ssh_host_dsa_key && \
-    ${OPENSSH_DIR}/bin/ssh-keygen -t ed25519 -N '' -f /etc/ega/ssh_host_ed25519_key
-
+# rsa, dsa and ed25519 keys are created in the entrypoint
 
 #################################################
 ##

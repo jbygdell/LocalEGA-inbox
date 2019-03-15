@@ -75,6 +75,13 @@ chmod g+s /ega/inbox # setgid bit
 
 echo 'Welcome to Local EGA Demo instance' > /etc/ega/banner
 
+echo 'Creating rsa, dsa and ed25519 keys'
+rm -f /etc/{ega,ssh}/ssh_host_{rsa,dsa,ed25519}_key
+# No passphrase so far
+/opt/openssh/bin/ssh-keygen -t rsa     -N '' -f /etc/ega/ssh_host_rsa_key
+/opt/openssh/bin/ssh-keygen -t dsa     -N '' -f /etc/ega/ssh_host_dsa_key
+/opt/openssh/bin/ssh-keygen -t ed25519 -N '' -f /etc/ega/ssh_host_ed25519_key
+
 echo "Starting the SFTP server"
 # Use -o LogLevel=VERBOSE to see the MQ connection parameters
 exec /opt/openssh/sbin/ega-sshd -D -e -f /etc/ega/sshd_config -Z /etc/ega/mq.conf
