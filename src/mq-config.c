@@ -16,7 +16,6 @@
 
 /* Default values */
 #define MQ_HEARTBEAT       0
-#define MQ_ENABLE_SSL      false
 #define MQ_VERIFY_PEER     0
 #define MQ_VERIFY_HOSTNAME 0
 
@@ -99,7 +98,7 @@ readconfig(FILE* fp, const char* cfgfile, char* buffer, size_t buflen)
   /* Default config values */
   mq_options->heartbeat = MQ_HEARTBEAT;
   mq_options->connection_opened = 0; /* not opened yet */
-  mq_options->ssl = MQ_ENABLE_SSL;
+  mq_options->ssl = 0;
   mq_options->verify_peer = MQ_VERIFY_PEER;
   mq_options->verify_hostname = MQ_VERIFY_HOSTNAME;
   mq_options->dsn = NULL;
@@ -143,11 +142,9 @@ readconfig(FILE* fp, const char* cfgfile, char* buffer, size_t buflen)
     INJECT_OPTION(key, "cacert"        , val, &(mq_options->cacert)      );
 
     /* strtol ok even when val contains a comment #... */
-    if(!strcmp(key, "heartbeat"           )) { mq_options->heartbeat   = strtol(val, NULL, 10); }
-    if(!strcmp(key, "port"                )) { mq_options->port        = strtol(val, NULL, 10); }
+    if(!strcmp(key, "heartbeat")) { mq_options->heartbeat   = strtol(val, NULL, 10); }
 
     /* Yes/No options */
-    set_yes_no_option(key, val, "enable_ssl", &(mq_options->ssl));
     set_yes_no_option(key, val, "verify_peer", &(mq_options->verify_peer));
     set_yes_no_option(key, val, "verify_hostname", &(mq_options->verify_hostname));
   }
